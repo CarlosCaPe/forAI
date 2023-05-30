@@ -1,0 +1,740 @@
+USE [MAXI];
+
+
+GO
+/****** Object:  StoredProcedure [Corp].[st_DashboardWithFilter]    Script Date: 4/5/2023 1:50:26 PM ******/
+SET ANSI_NULLS ON;
+GO
+SET QUOTED_IDENTIFIER ON;
+GO
+--ALTER PROCEDURE [Corp].[st_DashboardWithFilterV2] (
+DECLARE
+    @WeeksAgo INT = 1,
+    @NowWithTime DATETIME = '2023-04-04 23:19:46.973',
+    @Increment NUMERIC(8,2) = 10,
+    @IdUserSeller INT = 2198,
+    @IdUserRequester INT = 19446,
+    @StatusesPreselected XML  = convert(xml,N'<statuses><status id="5"/><status id="2"/><status id="1"/><status id="4"/><status id="3"/><status id="6"/><status id="7"/></statuses>'),
+    @Type INT = 1,
+    @IdCountry INT = 11,
+    @IdGateway INT = 4,
+    @IdPayer INT = 1;
+    
+--)
+--as
+
+
+
+/********************************************************************
+<Author>--</Author>
+<app>---</app>
+<Description>---</Description>
+
+<ChangeLog>
+<log Date="23/07/2019" Author="josesoto" Name="#1">Mejora para filtro en caso de usuario con estatus Disabled.</log>
+<log Date="2023/03/31" Author="jdarellano">Optimización de sp.</log>
+</ChangeLog>
+*********************************************************************/
+BEGIN
+	BEGIN TRY
+
+	
+		SET ARITHABORT ON;
+		SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+
+		DROP TABLE IF EXISTS #SellerSubordinates
+							,#items
+							,#SellerTree
+							,#T1
+							,#tempT1
+							,#tempT2
+							,#tempT3
+							,#tempT4
+							,#T2	,#T3
+							,#T4	,#T5
+							,#T6	,#T0
+							,#T7	,#TempM1
+							,#TempM2
+							,#TempM3
+							,#TempM4
+							;
+
+		SET @Type = ISNULL(@Type,1);
+
+		DECLARE @Country NVARCHAR(MAX);
+		DECLARE @Gateway NVARCHAR(MAX);
+		DECLARE @Payer NVARCHAR(MAX);
+
+		SELECT @Country = CountryName FROM dbo.Country  WHERE IdCountry = @IdCountry;
+		SELECT @Gateway = GatewayName FROM dbo.Gateway  WHERE IdGateway = @IdGateway;
+		SELECT @Payer = PayerName FROM dbo.Payer  WHERE IdPayer = @IdPayer;
+		
+		
+		
+
+		DECLARE @tStatus TABLE    
+		(    
+			id INT    
+		);
+    
+		DECLARE @DocHandle INT;
+		DECLARE @hasStatus BIT;
+
+		EXEC sys.sp_xml_preparedocument @DocHandle OUTPUT, @StatusesPreselected;
+
+
+
+		INSERT INTO @tStatus(id)     
+		SELECT id    
+		FROM OPENXML (@DocHandle, '/statuses/status',1)     
+		WITH (id INT);      
+    
+
+	
+
+		EXEC sys.sp_xml_removedocument @DocHandle;    
+		
+		DECLARE @Now DATETIME,@EndDate DATETIME, @StartDate DATETIME, @NowStart DATETIME;
+		DECLARE @OneMonthAgoSD DATETIME,@OneMonthAgoED DATETIME;
+		DECLARE @TwoMonthAgoSD DATETIME,@TwoMonthAgoED DATETIME;
+		DECLARE @ThreeMonthAgoSD DATETIME,@ThreeMonthAgoED DATETIME;
+		DECLARE @CurrentMonthSD DATETIME,@CurrentMonthED DATETIME;
+		DECLARE @DayOfMonth INT,@TotalDaysOfCurrentMonth INT;
+		
+		SET @Now = @NowWithTime;
+		SELECT @NowStart = CAST(@Now AS DATE);
+		SET @EndDate = DATEADD(WEEK,@WeeksAgo*-1,@Now);
+		SELECT  @StartDate = CAST(@EndDate AS DATE);
+
+
+		
+		
+
+		SET @DayOfMonth = DAY(@Now);
+		SET @TotalDaysOfCurrentMonth = DAY(DATEADD(d,-DAY(DATEADD(m,1,@Now)),DATEADD(m,1,@Now)));
+
+		
+
+		SELECT @OneMonthAgoSD = CAST(DATEADD(MONTH,-1,@Now) AS DATE);
+		SELECT @OneMonthAgoSD = DATEADD(DAY,(DATEPART(DAY,@OneMonthAgoSD))*-1+1 ,@OneMonthAgoSD);
+		SELECT @OneMonthAgoED = DATEADD(MONTH,+1,@OneMonthAgoSD);
+		
+
+		SELECT @TwoMonthAgoSD = CAST(DATEADD(MONTH,-2,@Now) AS DATE);
+		SELECT @TwoMonthAgoSD = DATEADD(DAY,(DATEPART(DAY,@TwoMonthAgoSD))*-1+1 ,@TwoMonthAgoSD);
+		SELECT @TwoMonthAgoED = DATEADD(MONTH,+1,@TwoMonthAgoSD);
+
+		SELECT @ThreeMonthAgoSD= CAST(DATEADD(MONTH,-3,@Now) AS DATE);
+		SELECT @ThreeMonthAgoSD = DATEADD(DAY,(DATEPART(DAY,@ThreeMonthAgoSD))*-1+1 ,@ThreeMonthAgoSD);
+		SELECT @ThreeMonthAgoED = DATEADD(MONTH,+1,@ThreeMonthAgoSD);
+
+		SELECT @CurrentMonthSD = CAST(@Now AS DATE);
+		SELECT @CurrentMonthSD = DATEADD(DAY,(DATEPART(DAY,@CurrentMonthSD))*-1+1 ,@CurrentMonthSD);
+		SELECT @CurrentMonthED = DATEADD(DAY,1,CAST(@Now AS DATE));
+
+
+		DECLARE @IsAllSeller BIT; 
+		SET @IsAllSeller = (SELECT 1 FROM dbo.Users  WHERE @IdUserSeller = 0 AND [IdUser] = @IdUserRequester AND [IdUserType] = 1); 
+
+
+	
+
+		CREATE TABLE #SellerSubordinates
+		(
+			IdSeller INT
+		);
+
+
+		-------Nuevo proceso de busqueda recursiva de Sellers---------------------
+
+		DECLARE @IdUserBaseText NVARCHAR(MAX);
+
+		SET @IdUserBaseText = CONCAT('%/',ISNULL(CONVERT(VARCHAR,@IdUserRequester),'0'),'/%');
+
+		
+		SELECT 
+			u.IdUser,
+			u.UserName,
+			u.UserLogin,
+			0 AS [Level],
+			CAST(CONCAT('/',CONVERT(VARCHAR,u.IdUser),'/') AS VARCHAR(2000)) AS [Path]
+		INTO #items
+		FROM dbo.Users AS u 
+		INNER JOIN dbo.Seller AS s  ON u.IdUser = s.IdUserSeller 
+		WHERE u.IdGenericStatus = 1 
+		AND s.IdUserSellerParent IS NULL;
+
+		
+
+		SELECT
+			S.IdUser,
+			S.UserName,
+			S.UserLogin,
+			S.Level,
+			S.Path
+		INTO #SellerTree
+		FROM
+		(
+			SELECT 
+				IdUser,
+				UserName,
+				UserLogin, 
+				[Level], 
+				[Path]
+			FROM #items
+    
+			UNION ALL
+
+			SELECT 
+				u.IdUser,
+				u.UserName,
+				u.UserLogin, 
+				itms.Level + 1, 
+				--CAST(itms.path+convert(varchar,isnull(u.iduser,''))+'/' as varchar(2000)) AS [Path]
+				CAST(CONCAT(itms.Path,CONVERT(VARCHAR,ISNULL(u.IdUser,'')),'/') AS VARCHAR(2000)) AS [Path]
+			FROM dbo.Users AS u 
+			INNER JOIN dbo.Seller AS s  ON u.IdUser = s.IdUserSeller 
+			INNER JOIN #items AS itms ON itms.IdUser = s.IdUserSellerParent
+			WHERE u.IdGenericStatus = 1
+		) AS S;
+
+		
+
+		INSERT INTO #SellerSubordinates 
+		SELECT IdUser FROM #SellerTree WHERE [Path] LIKE @IdUserBaseText AND @IdUserSeller = 0;
+
+		------ Number of transaction Same hours weeks ago ------------------------
+		
+
+		SELECT SUM(LT.NumTran) AS TotalWeeksAgo, LT.IdGeneric 
+		INTO #T1
+		FROM(
+				SELECT SUM(1) AS NumTran, CASE WHEN @Type = 1 THEN s.IdState WHEN @Type = 2 THEN T.IdGateway WHEN @Type = 3 THEN c.IdCountry WHEN @Type = 4 THEN A.IdUserSeller END AS IdGeneric 
+				FROM dbo.[Transfer] AS T 
+				INNER JOIN dbo.Agent AS A  ON (T.IdAgent = A.IdAgent)
+				INNER JOIN dbo.[State] AS s  ON s.IdCountry = 18 AND A.AgentState = s.StateCode
+				INNER JOIN dbo.CountryCurrency AS c  ON T.IdCountryCurrency = c.IdCountryCurrency
+				WHERE T.DateOfTransfer >= @StartDate 
+						AND c.IdCountry = ISNULL(@IdCountry,c.IdCountry)
+						AND T.IdGateway = ISNULL(@IdGateway,T.IdGateway)
+						AND T.IdPayer = ISNULL(@IdPayer,T.IdPayer)
+				GROUP BY CASE WHEN @Type = 1 THEN s.IdState WHEN @Type = 2 THEN T.IdGateway WHEN @Type = 3 THEN c.IdCountry WHEN @Type = 4 THEN A.IdUserSeller END
+			
+
+				UNION ALL
+
+				SELECT SUM(1) AS NumTran, CASE WHEN @Type = 1 THEN s.IdState WHEN @Type = 2 THEN T.IdGateway WHEN @Type = 3 THEN c.IdCountry WHEN @Type = 4 THEN A.IdUserSeller END AS IdGeneric 
+				FROM dbo.TransferClosed AS T  --WITH(INDEX(IX_TransferClosed_IdStatus_DateOfTransfer_DateStatusChange))
+				INNER JOIN dbo.Agent AS A  ON (T.IdAgent = A.IdAgent)
+				INNER JOIN dbo.[State] AS s  ON s.IdCountry = 18 AND A.AgentState = s.StateCode
+				INNER JOIN dbo.CountryCurrency AS c  ON T.IdCountryCurrency = c.IdCountryCurrency
+				WHERE T.DateOfTransfer >= @StartDate AND T.DateOfTransfer < @EndDate
+						AND (@IsAllSeller = 1 OR (A.IdUserSeller = @IdUserSeller OR A.IdUserSeller IN (SELECT IdSeller FROM #SellerSubordinates)))
+						AND A.IdAgentStatus IN (SELECT id FROM @tStatus)
+						AND c.IdCountry = ISNULL(@IdCountry,c.IdCountry)
+						AND T.IdGateway = ISNULL(@IdGateway,T.IdGateway)
+						AND T.IdPayer = ISNULL(@IdPayer,T.IdPayer)
+				GROUP BY CASE WHEN @Type = 1 THEN s.IdState WHEN @Type = 2 THEN T.IdGateway WHEN @Type = 3 THEN c.IdCountry WHEN @Type = 4 THEN A.IdUserSeller END
+			
+				UNION ALL
+
+				SELECT SUM(1)*-1 AS NumTran, CASE WHEN @Type = 1 THEN s.IdState WHEN @Type = 2 THEN T.IdGateway WHEN @Type = 3 THEN c.IdCountry WHEN @Type = 4 THEN A.IdUserSeller END AS IdGeneric 
+				FROM dbo.[Transfer] AS T 
+				INNER JOIN dbo.Agent AS A  ON (T.IdAgent = A.IdAgent)
+				INNER JOIN dbo.[State] AS s  ON s.IdCountry = 18 AND A.AgentState = s.StateCode
+				INNER JOIN dbo.CountryCurrency AS c  ON T.IdCountryCurrency = c.IdCountryCurrency
+				WHERE T.DateStatusChange >= @StartDate AND T.DateStatusChange<@EndDate AND T.IdStatus IN (22,31)
+						AND (@IsAllSeller=1 OR (A.IdUserSeller = @IdUserSeller OR A.IdUserSeller IN (SELECT IdSeller FROM #SellerSubordinates)))
+						AND A.IdAgentStatus IN (SELECT id FROM @tStatus)
+						AND c.IdCountry = ISNULL(@IdCountry,c.IdCountry)
+						AND T.IdGateway = ISNULL(@IdGateway,T.IdGateway)
+						AND T.IdPayer = ISNULL(@IdPayer,T.IdPayer)
+				GROUP BY CASE WHEN @Type = 1 THEN s.IdState WHEN @Type = 2 THEN T.IdGateway WHEN @Type = 3 THEN c.IdCountry WHEN @Type = 4 THEN A.IdUserSeller END 
+			
+				UNION ALL
+
+				SELECT SUM(1)*-1 AS NumTran, CASE WHEN @Type = 1 THEN s.IdState WHEN @Type = 2 THEN T.IdGateway WHEN @Type = 3 THEN c.IdCountry WHEN @Type = 4 THEN A.IdUserSeller END AS IdGeneric 
+				FROM dbo.TransferClosed AS T  --WITH(INDEX(IX_TransferClosed_IdStatus_DateOfTransfer_DateStatusChange))
+				INNER JOIN dbo.Agent AS A  ON (T.IdAgent = A.IdAgent)
+				INNER JOIN dbo.[State] AS s  ON s.IdCountry = 18 AND A.AgentState = s.StateCode
+				INNER JOIN dbo.CountryCurrency AS c  ON T.IdCountryCurrency = c.IdCountryCurrency
+				WHERE T.DateStatusChange >= @StartDate AND T.DateStatusChange < @EndDate AND T.IdStatus IN (22,31)
+						AND (@IsAllSeller=1 OR (A.IdUserSeller = @IdUserSeller OR A.IdUserSeller IN (SELECT IdSeller FROM #SellerSubordinates)))
+						AND A.IdAgentStatus IN (SELECT id FROM @tStatus)
+						AND c.IdCountry = ISNULL(@IdCountry,c.IdCountry)
+						AND T.IdGateway = ISNULL(@IdGateway,T.IdGateway)
+						AND T.IdPayer = ISNULL(@IdPayer,T.IdPayer)
+				GROUP BY CASE WHEN @Type = 1 THEN s.IdState WHEN @Type = 2 THEN T.IdGateway WHEN @Type = 3 THEN c.IdCountry WHEN @Type = 4 THEN A.IdUserSeller END 
+			) LT
+		GROUP BY LT.IdGeneric;
+
+	
+
+		------ Number of transaction Today   ------------------------
+
+		--#tempT1
+		SELECT T.IdCountryCurrency, A.IdAgentCollectType,T.IdGateway,T.IdPayer,T.IdPaymentType,ROUND(ISNULL(((T.Fee-T.AgentCommission) + (((T.ReferenceExRate-T.ExRate) * T.AmountInDollars) / T.ReferenceExRate)),0),2) AS AmountInDollars, T.AmountInDollars AS AmountInDollarsForCommission, s.IdState,c.IdCountry,A.IdUserSeller,CAST(DATEADD(dd,-(DAY(T.DateOfTransfer)-1),T.DateOfTransfer) AS DATE) AS DateOfCommission 
+		INTO #tempT1 
+		FROM dbo.[Transfer] AS T 
+		INNER JOIN dbo.Agent AS A  ON (T.IdAgent=A.IdAgent)
+		INNER JOIN dbo.[State] AS s  ON s.IdCountry = 18 AND A.AgentState = s.StateCode
+		INNER JOIN dbo.CountryCurrency AS c  ON T.IdCountryCurrency = c.IdCountryCurrency
+		WHERE T.DateOfTransfer >= @NowStart AND T.DateOfTransfer < @Now
+			AND (@IsAllSeller = 1 OR (A.IdUserSeller = @IdUserSeller OR A.IdUserSeller IN (SELECT IdSeller FROM #SellerSubordinates)))
+			AND A.IdAgentStatus IN (SELECT id FROM @tStatus)
+			AND c.IdCountry = ISNULL(@IdCountry,c.IdCountry)
+			AND T.IdGateway = ISNULL(@IdGateway,T.IdGateway)
+			AND T.IdPayer = ISNULL(@IdPayer,T.IdPayer);
+
+
+
+		--#tempT2
+		SELECT T.IdCountryCurrency, A.IdAgentCollectType,T.IdGateway,T.IdPayer,T.IdPaymentType,ROUND(ISNULL(((T.Fee-T.AgentCommission) + (((T.ReferenceExRate-T.ExRate)*T.AmountInDollars)/T.ReferenceExRate)),0),2) AmountInDollars, T.AmountInDollars AS AmountInDollarsForCommission, s.IdState,c.IdCountry,A.IdUserSeller,CAST(DATEADD(dd,-(DAY(T.DateOfTransfer)-1),T.DateOfTransfer) AS DATE) AS DateOfCommission 
+		INTO #tempT2 
+		FROM dbo.TransferClosed T  
+		INNER JOIN dbo.Agent AS A  ON (T.IdAgent = A.IdAgent)
+		INNER JOIN dbo.[State] AS s  ON s.IdCountry = 18 AND A.AgentState = s.StateCode
+		INNER JOIN dbo.CountryCurrency AS c  ON T.IdCountryCurrency = c.IdCountryCurrency
+		WHERE T.DateOfTransfer >= @NowStart AND T.DateOfTransfer < @Now
+			AND (@IsAllSeller = 1 OR (A.IdUserSeller = @IdUserSeller OR A.IdUserSeller IN (SELECT IdSeller FROM #SellerSubordinates)))
+			AND A.IdAgentStatus IN (SELECT id FROM @tStatus)
+			AND c.IdCountry = ISNULL(@IdCountry,c.IdCountry)
+			AND T.IdGateway = ISNULL(@IdGateway,T.IdGateway)
+			AND T.IdPayer = ISNULL(@IdPayer,T.IdPayer);
+
+		--#tempT3
+		SELECT T.IdCountryCurrency, A.IdAgentCollectType,T.IdGateway,T.IdPayer,T.IdPaymentType,ROUND(ISNULL((((CASE WHEN TA.IdTransfer IS NULL AND T.IdStatus=22 THEN 0 ELSE T.Fee END)-T.AgentCommission) + (((T.ReferenceExRate-T.ExRate)*T.AmountInDollars)/T.ReferenceExRate)),0),2) AS AmountInDollars, T.AmountInDollars AS AmountInDollarsForCommission, s.IdState,c.IdCountry,A.IdUserSeller,CAST(DATEADD(dd,-(DAY(T.DateOfTransfer)-1),T.DateOfTransfer) AS DATE) AS DateOfCommission 
+		INTO #tempT3 
+		FROM dbo.[Transfer] AS T 
+		INNER JOIN dbo.Agent AS A  ON (T.IdAgent = A.IdAgent)
+		INNER JOIN dbo.[State] AS s  ON s.IdCountry = 18 AND A.AgentState = s.StateCode
+		INNER JOIN dbo.CountryCurrency AS c  ON T.IdCountryCurrency = c.IdCountryCurrency
+		LEFT JOIN dbo.TransferNotAllowedResend AS TA  ON T.IdTransfer = TA.IdTransfer  
+		WHERE T.DateStatusChange >= @NowStart AND T.DateStatusChange < @Now AND T.IdStatus IN (22,31)
+			AND (@IsAllSeller = 1 OR (A.IdUserSeller = @IdUserSeller OR A.IdUserSeller IN (SELECT IdSeller FROM #SellerSubordinates)))
+			AND A.IdAgentStatus IN (SELECT id FROM @tStatus)
+			AND c.IdCountry = ISNULL(@IdCountry,c.IdCountry)
+			AND T.IdGateway = ISNULL(@IdGateway,T.IdGateway)
+			AND T.IdPayer = ISNULL(@IdPayer,T.IdPayer);
+
+		--#tempT4
+		SELECT T.IdCountryCurrency, A.IdAgentCollectType,T.IdGateway,T.IdPayer,T.IdPaymentType,ROUND(ISNULL((((CASE WHEN TA.IdTransfer IS NULL AND T.IdStatus = 22 THEN 0 ELSE T.Fee END)-T.AgentCommission) + (((T.ReferenceExRate-T.ExRate)*T.AmountInDollars)/T.ReferenceExRate)),0),2) AS AmountInDollars, T.AmountInDollars AS AmountInDollarsForCommission, s.IdState,c.IdCountry,A.IdUserSeller,CAST(DATEADD(dd,-(DAY(T.DateOfTransfer)-1),T.DateOfTransfer) AS DATE) AS DateOfCommission 
+		INTO #tempT4 
+		FROM dbo.TransferClosed AS T  --with (nolock, INDEX(IX_TransferClosed_IdStatus_DateOfTransfer_DateStatusChange))
+		INNER JOIN dbo.Agent AS A  ON (T.IdAgent = A.IdAgent)
+		INNER JOIN dbo.[State] AS s  ON s.IdCountry = 18 AND A.AgentState = s.StateCode
+		INNER JOIN dbo.CountryCurrency AS c  ON T.IdCountryCurrency = c.IdCountryCurrency
+		LEFT JOIN dbo.TransferNotAllowedResend AS TA  ON T.IdTransferClosed = TA.IdTransfer  
+		WHERE T.DateStatusChange>= @NowStart AND T.DateStatusChange<@Now AND T.IdStatus IN (22,31)
+			AND (@IsAllSeller=1 OR (A.IdUserSeller = @IdUserSeller OR A.IdUserSeller IN (SELECT IdSeller FROM #SellerSubordinates)))
+			 
+			AND A.IdAgentStatus IN (SELECT id FROM @tStatus)
+			AND c.IdCountry=ISNULL(@IdCountry,c.IdCountry)
+			AND T.IdGateway=ISNULL(@IdGateway,T.IdGateway)
+			AND T.IdPayer=ISNULL(@IdPayer,T.IdPayer);
+
+		--acumulado
+		SELECT SUM(LT.NumTran) AS TotalToday,SUM(LT.AmountInDollars) TotalAmountInDollarsToday, LT.IdGeneric INTO #T2
+			FROM(		
+				SELECT SUM(1) AS NumTran,SUM(T.AmountInDollars-(CASE WHEN T.IdAgentCollectType=1 THEN 0 ELSE ISNULL(T.AmountInDollarsForCommission*b.FactorNew,0) END)-(ISNULL(p.CommissionNew,0))) AmountInDollars, CASE WHEN @Type=1 THEN T.IdState WHEN @Type=2 THEN T.IdGateway WHEN @Type=3 THEN T.IdCountry WHEN @Type=4 THEN T.IdUserSeller END IdGeneric
+				FROM #tempT1 T
+				LEFT JOIN dbo.BankCommission b  ON b.DateOfBankCommission=T.DateOfCommission AND b.Active=1
+				LEFT JOIN dbo.PayerConfig x  ON T.IdGateway=x.IdGateway AND T.IdPayer=x.IdPayer AND T.IdPaymentType=x.IdPaymentType AND x.IdCountryCurrency=T.IdCountryCurrency AND IdPayerConfig NOT IN (711,807)
+				LEFT JOIN dbo.PayerConfigCommission p  ON p.DateOfPayerConfigCommission=T.DateOfCommission AND x.IdPayerConfig=p.IdPayerConfig AND p.Active=1 
+				GROUP BY CASE WHEN @Type=1 THEN T.IdState WHEN @Type=2 THEN T.IdGateway WHEN @Type=3 THEN T.IdCountry WHEN @Type=4 THEN T.IdUserSeller END 
+			
+				UNION ALL
+		
+				SELECT SUM(1) AS NumTran,SUM(T.AmountInDollars-(CASE WHEN T.IdAgentCollectType=1 THEN 0 ELSE ISNULL(T.AmountInDollarsForCommission*b.FactorNew,0) END)-(ISNULL(p.CommissionNew,0))) AmountInDollars, CASE WHEN @Type=1 THEN T.IdState WHEN @Type=2 THEN T.IdGateway WHEN @Type=3 THEN T.IdCountry WHEN @Type=4 THEN T.IdUserSeller END IdGeneric
+				FROM #tempT2 T
+				LEFT JOIN dbo.BankCommission b  ON b.DateOfBankCommission=T.DateOfCommission AND b.Active=1
+				LEFT JOIN dbo.PayerConfig x  ON T.IdGateway=x.IdGateway AND T.IdPayer=x.IdPayer AND T.IdPaymentType=x.IdPaymentType AND x.IdCountryCurrency=T.IdCountryCurrency AND IdPayerConfig NOT IN (711,807)
+				LEFT JOIN dbo.PayerConfigCommission p  ON p.DateOfPayerConfigCommission=T.DateOfCommission AND x.IdPayerConfig=p.IdPayerConfig AND p.Active=1
+				GROUP BY CASE WHEN @Type=1 THEN T.IdState WHEN @Type=2 THEN T.IdGateway WHEN @Type=3 THEN T.IdCountry WHEN @Type=4 THEN T.IdUserSeller END 
+			
+				UNION ALL
+		
+				SELECT SUM(1)*-1 AS NumTran,SUM(T.AmountInDollars-(CASE WHEN T.IdAgentCollectType=1 THEN 0 ELSE ISNULL(T.AmountInDollarsForCommission*b.FactorNew,0) END)-(ISNULL(p.CommissionNew,0)))*-1 AmountInDollars, CASE WHEN @Type=1 THEN T.IdState WHEN @Type=2 THEN T.IdGateway WHEN @Type=3 THEN T.IdCountry WHEN @Type=4 THEN T.IdUserSeller END IdGeneric
+				FROM #tempT3 T
+				LEFT JOIN dbo.BankCommission b  ON b.DateOfBankCommission=T.DateOfCommission AND b.Active=1
+				LEFT JOIN dbo.PayerConfig x  ON T.IdGateway=x.IdGateway AND T.IdPayer=x.IdPayer AND T.IdPaymentType=x.IdPaymentType AND x.IdCountryCurrency=T.IdCountryCurrency AND IdPayerConfig NOT IN (711,807)
+				LEFT JOIN dbo.PayerConfigCommission p  ON p.DateOfPayerConfigCommission=T.DateOfCommission AND x.IdPayerConfig=p.IdPayerConfig AND p.Active=1
+				GROUP BY CASE WHEN @Type=1 THEN T.IdState WHEN @Type=2 THEN T.IdGateway WHEN @Type=3 THEN T.IdCountry WHEN @Type=4 THEN T.IdUserSeller END 
+			
+				UNION ALL
+		
+				SELECT SUM(1)*-1 AS NumTran,SUM(T.AmountInDollars-(CASE WHEN T.IdAgentCollectType=1 THEN 0 ELSE ISNULL(T.AmountInDollarsForCommission*b.FactorNew,0) END)-(ISNULL(p.CommissionNew,0)))*-1 AmountInDollars, CASE WHEN @Type=1 THEN T.IdState WHEN @Type=2 THEN T.IdGateway WHEN @Type=3 THEN T.IdCountry WHEN @Type=4 THEN T.IdUserSeller END IdGeneric
+				FROM #tempT4 T
+				LEFT JOIN dbo.BankCommission b  ON b.DateOfBankCommission=T.DateOfCommission AND b.Active=1
+				LEFT JOIN dbo.PayerConfig x  ON T.IdGateway=x.IdGateway AND T.IdPayer=x.IdPayer AND T.IdPaymentType=x.IdPaymentType AND x.IdCountryCurrency=T.IdCountryCurrency AND IdPayerConfig NOT IN (711,807)
+				LEFT JOIN dbo.PayerConfigCommission p  ON p.DateOfPayerConfigCommission=T.DateOfCommission AND x.IdPayerConfig=p.IdPayerConfig AND p.Active=1
+				GROUP BY CASE WHEN @Type=1 THEN T.IdState WHEN @Type=2 THEN T.IdGateway WHEN @Type=3 THEN T.IdCountry WHEN @Type=4 THEN T.IdUserSeller END 
+			) LT
+		GROUP BY LT.IdGeneric;
+
+
+		------ Number of transaction One Month ago ------------------------
+
+		SELECT SUM(LT.NumTran) AS TotalOneMonthAgo,SUM(LT.AmountInDollars) TotalAmountInDollarsOneMonthAgo, LT.IdGeneric  INTO #T3 
+			FROM(
+				SELECT T.NumTran, T.AmountInDollars, CASE WHEN @Type=1 THEN s.IdState WHEN @Type=2 THEN T.IdGateway WHEN @Type=3 THEN T.IdCountry WHEN @Type=4 THEN A.IdUserSeller END IdGeneric FROM dbo.DashboardForGatewayCountry T 
+				JOIN dbo.Agent A  ON (T.IdAgent=A.IdAgent)
+				JOIN  dbo.State s  ON s.IdCountry=18 AND A.AgentState=s.StateCode
+				WHERE T.Date>= @OneMonthAgoSD AND T.Date<@OneMonthAgoED
+						AND (@IsAllSeller=1 OR (A.IdUserSeller = @IdUserSeller OR A.IdUserSeller IN (SELECT IdSeller FROM #SellerSubordinates)))		
+						AND A.IdAgentStatus IN (SELECT id FROM @tStatus)
+						AND T.IdCountry=ISNULL(@IdCountry,T.IdCountry)
+						AND T.IdGateway=ISNULL(@IdGateway,T.IdGateway)
+						AND T.IdPayer=ISNULL(@IdPayer,T.IdPayer)	
+			) LT
+		GROUP BY LT.IdGeneric;
+
+		------ Number of transaction Two Month ago ------------------------
+
+		SELECT SUM(LT.NumTran) AS TotalTwoMonthAgo,SUM(LT.AmountInDollars) TotalAmountInDollarsTwoMonthAgo, LT.IdGeneric INTO #T4
+			FROM(
+				SELECT T.NumTran, T.AmountInDollars, CASE WHEN @Type=1 THEN s.IdState WHEN @Type=2 THEN T.IdGateway WHEN @Type=3 THEN T.IdCountry WHEN @Type=4 THEN A.IdUserSeller END IdGeneric FROM dbo.DashboardForGatewayCountry T 
+				JOIN dbo.Agent A  ON (T.IdAgent=A.IdAgent)
+				JOIN  dbo.State s  ON s.IdCountry=18 AND A.AgentState=s.StateCode
+				WHERE T.Date>= @TwoMonthAgoSD AND T.Date<@TwoMonthAgoED
+						AND (@IsAllSeller=1 OR (A.IdUserSeller = @IdUserSeller OR A.IdUserSeller IN (SELECT IdSeller FROM #SellerSubordinates)))				
+						AND A.IdAgentStatus IN (SELECT id FROM @tStatus)		
+						AND T.IdCountry=ISNULL(@IdCountry,T.IdCountry)
+						AND T.IdGateway=ISNULL(@IdGateway,T.IdGateway)
+						AND T.IdPayer=ISNULL(@IdPayer,T.IdPayer)
+			) LT
+		GROUP BY LT.IdGeneric;
+
+
+		------ Number of transaction Three Month ago ------------------------
+
+		SELECT SUM(LT.NumTran) AS TotalThreeMonthAgo,SUM(LT.AmountInDollars) TotalAmountInDollarsThreeMonthAgo, LT.IdGeneric INTO #T5
+			FROM(
+				SELECT T.NumTran, T.AmountInDollars, CASE WHEN @Type=1 THEN s.IdState WHEN @Type=2 THEN T.IdGateway WHEN @Type=3 THEN T.IdCountry WHEN @Type=4 THEN A.IdUserSeller END IdGeneric FROM dbo.DashboardForGatewayCountry T 
+				JOIN dbo.Agent A  ON (T.IdAgent=A.IdAgent)
+				JOIN  dbo.State s  ON s.IdCountry=18 AND A.AgentState=s.StateCode
+				WHERE T.Date>= @ThreeMonthAgoSD AND T.Date<@ThreeMonthAgoED
+						AND (@IsAllSeller=1 OR (A.IdUserSeller = @IdUserSeller OR A.IdUserSeller IN (SELECT IdSeller FROM #SellerSubordinates)))		
+						AND A.IdAgentStatus IN (SELECT id FROM @tStatus)		
+						AND T.IdCountry=ISNULL(@IdCountry,T.IdCountry)
+						AND T.IdGateway=ISNULL(@IdGateway,T.IdGateway)
+						AND T.IdPayer=ISNULL(@IdPayer,T.IdPayer)
+			) LT
+		GROUP BY LT.IdGeneric;
+
+
+		------ Number of transaction Current Month ------------------------
+
+		--#tempM1
+		SELECT T.IdCountryCurrency, A.IdAgentCollectType,T.IdGateway,T.IdPayer,T.IdPaymentType,ROUND(ISNULL(((T.Fee-T.AgentCommission) + (((T.ReferenceExRate-T.ExRate)*T.AmountInDollars)/T.ReferenceExRate)),0),2) AmountInDollars, T.AmountInDollars AmountInDollarsForCommission, s.IdState,c.IdCountry,A.IdUserSeller,CAST(DATEADD(dd,-(DAY(T.DateOfTransfer)-1),T.DateOfTransfer) AS DATE) DateOfCommission 
+		INTO #tempM1 
+		FROM dbo.Transfer T 
+				JOIN dbo.Agent A  ON (T.IdAgent=A.IdAgent)
+				JOIN  dbo.State s  ON s.IdCountry=18 AND A.AgentState=s.StateCode
+				JOIN dbo.CountryCurrency c  ON T.IdCountryCurrency=c.IdCountryCurrency
+				WHERE T.DateOfTransfer>= @CurrentMonthSD AND T.DateOfTransfer<@CurrentMonthED
+						AND (@IsAllSeller=1 OR (A.IdUserSeller = @IdUserSeller OR A.IdUserSeller IN (SELECT IdSeller FROM #SellerSubordinates)))
+						AND A.IdAgentStatus IN (SELECT id FROM @tStatus)
+						AND c.IdCountry=ISNULL(@IdCountry,c.IdCountry)
+						AND T.IdGateway=ISNULL(@IdGateway,T.IdGateway)
+						AND T.IdPayer=ISNULL(@IdPayer,T.IdPayer);
+		--#tempM2
+		SELECT T.IdCountryCurrency, A.IdAgentCollectType,T.IdGateway,T.IdPayer,T.IdPaymentType,ROUND(ISNULL(((T.Fee-T.AgentCommission) + (((T.ReferenceExRate-T.ExRate)*T.AmountInDollars)/T.ReferenceExRate)),0),2) AmountInDollars, T.AmountInDollars AmountInDollarsForCommission, s.IdState,c.IdCountry,A.IdUserSeller,CAST(DATEADD(dd,-(DAY(T.DateOfTransfer)-1),T.DateOfTransfer) AS DATE) DateOfCommission 
+		INTO #tempM2 
+		FROM dbo.TransferClosed T 
+				JOIN dbo.Agent A  ON (T.IdAgent=A.IdAgent)
+				JOIN  dbo.State s  ON s.IdCountry=18 AND A.AgentState=s.StateCode
+				JOIN dbo.CountryCurrency c  ON T.IdCountryCurrency=c.IdCountryCurrency
+				WHERE T.DateOfTransfer>= @CurrentMonthSD AND T.DateOfTransfer<@CurrentMonthED
+						AND (@IsAllSeller=1 OR (A.IdUserSeller = @IdUserSeller OR A.IdUserSeller IN (SELECT IdSeller FROM #SellerSubordinates)))
+						 
+						AND A.IdAgentStatus IN (SELECT id FROM @tStatus)
+						AND c.IdCountry=ISNULL(@IdCountry,c.IdCountry)
+						AND T.IdGateway=ISNULL(@IdGateway,T.IdGateway)
+						AND T.IdPayer=ISNULL(@IdPayer,T.IdPayer);
+
+		--#tempM3
+		SELECT T.IdCountryCurrency, A.IdAgentCollectType,T.IdGateway,T.IdPayer,T.IdPaymentType,ROUND(ISNULL((((CASE WHEN TA.IdTransfer IS NULL AND T.IdStatus=22 THEN 0 ELSE T.Fee END)-T.AgentCommission) + (((T.ReferenceExRate-T.ExRate)*T.AmountInDollars)/T.ReferenceExRate)),0),2) AmountInDollars, T.AmountInDollars AmountInDollarsForCommission, s.IdState,c.IdCountry,A.IdUserSeller,CAST(DATEADD(dd,-(DAY(T.DateOfTransfer)-1),T.DateOfTransfer) AS DATE) DateOfCommission 
+		INTO #tempM3 
+		FROM dbo.Transfer T 
+				JOIN dbo.Agent A  ON (T.IdAgent=A.IdAgent)
+				JOIN  dbo.State s  ON s.IdCountry=18 AND A.AgentState=s.StateCode
+				JOIN dbo.CountryCurrency c  ON T.IdCountryCurrency=c.IdCountryCurrency
+				LEFT JOIN dbo.TransferNotAllowedResend TA  ON T.IdTransfer=TA.IdTransfer  
+				WHERE T.DateStatusChange>= @CurrentMonthSD AND T.DateStatusChange<@CurrentMonthED AND T.IdStatus IN (22,31)
+						AND (@IsAllSeller=1 OR (A.IdUserSeller = @IdUserSeller OR A.IdUserSeller IN (SELECT IdSeller FROM #SellerSubordinates)))
+						 
+						AND A.IdAgentStatus IN (SELECT id FROM @tStatus)
+						AND c.IdCountry=ISNULL(@IdCountry,c.IdCountry)
+						AND T.IdGateway=ISNULL(@IdGateway,T.IdGateway)
+						AND T.IdPayer=ISNULL(@IdPayer,T.IdPayer);
+
+		--#tempM4
+		SELECT T.IdCountryCurrency, A.IdAgentCollectType,T.IdGateway,T.IdPayer,T.IdPaymentType,ROUND(ISNULL((((CASE WHEN TA.IdTransfer IS NULL AND T.IdStatus=22 THEN 0 ELSE T.Fee END)-T.AgentCommission) + (((T.ReferenceExRate-T.ExRate)*T.AmountInDollars)/T.ReferenceExRate)),0),2) AmountInDollars, T.AmountInDollars AmountInDollarsForCommission, s.IdState,c.IdCountry,A.IdUserSeller,CAST(DATEADD(dd,-(DAY(T.DateOfTransfer)-1),T.DateOfTransfer) AS DATE) DateOfCommission 
+		INTO #tempM4 
+		FROM dbo.TransferClosed T 
+				JOIN dbo.Agent A  ON (T.IdAgent=A.IdAgent)
+				JOIN  dbo.State s  ON s.IdCountry=18 AND A.AgentState=s.StateCode
+				JOIN dbo.CountryCurrency c  ON T.IdCountryCurrency=c.IdCountryCurrency
+				LEFT JOIN dbo.TransferNotAllowedResend TA  ON T.IdTransferClosed=TA.IdTransfer  
+				WHERE T.DateStatusChange>= @CurrentMonthSD AND T.DateStatusChange<@CurrentMonthED AND T.IdStatus IN (22,31)
+						AND (@IsAllSeller=1 OR (A.IdUserSeller = @IdUserSeller OR A.IdUserSeller IN (SELECT IdSeller FROM #SellerSubordinates)))
+						 
+						AND A.IdAgentStatus IN (SELECT id FROM @tStatus)
+						AND c.IdCountry=ISNULL(@IdCountry,c.IdCountry)
+						AND T.IdGateway=ISNULL(@IdGateway,T.IdGateway)
+						AND T.IdPayer=ISNULL(@IdPayer,T.IdPayer);
+
+
+
+		--acumulado
+		SELECT SUM(LT.NumTran) AS TotalCurrentMonth,SUM(LT.AmountInDollars) TotalAmountInDollarsCurrentMonth, LT.IdGeneric INTO #T6
+			FROM(
+				SELECT SUM(1) AS NumTran,SUM(T.AmountInDollars-(CASE WHEN T.IdAgentCollectType=1 THEN 0 ELSE ISNULL(T.AmountInDollarsForCommission*b.FactorNew,0) END)-(ISNULL(p.CommissionNew,0))) AmountInDollars, CASE WHEN @Type=1 THEN T.IdState WHEN @Type=2 THEN T.IdGateway WHEN @Type=3 THEN T.IdCountry WHEN @Type=4 THEN T.IdUserSeller END IdGeneric
+				FROM #tempM1 T
+				LEFT JOIN dbo.BankCommission b  ON b.DateOfBankCommission=T.DateOfCommission AND b.Active=1
+				LEFT JOIN dbo.PayerConfig x  ON T.IdGateway=x.IdGateway AND T.IdPayer=x.IdPayer AND T.IdPaymentType=x.IdPaymentType AND x.IdCountryCurrency=T.IdCountryCurrency AND IdPayerConfig NOT IN (711,807)
+				LEFT JOIN dbo.PayerConfigCommission p  ON p.DateOfPayerConfigCommission=T.DateOfCommission AND x.IdPayerConfig=p.IdPayerConfig AND p.Active=1
+				GROUP BY CASE WHEN @Type=1 THEN T.IdState WHEN @Type=2 THEN T.IdGateway WHEN @Type=3 THEN T.IdCountry WHEN @Type=4 THEN T.IdUserSeller END 
+			
+				UNION ALL
+		
+				SELECT SUM(1) AS NumTran,SUM(T.AmountInDollars-(CASE WHEN T.IdAgentCollectType=1 THEN 0 ELSE ISNULL(T.AmountInDollarsForCommission*b.FactorNew,0) END)-(ISNULL(p.CommissionNew,0))) AmountInDollars, CASE WHEN @Type=1 THEN T.IdState WHEN @Type=2 THEN T.IdGateway WHEN @Type=3 THEN T.IdCountry WHEN @Type=4 THEN T.IdUserSeller END IdGeneric
+				FROM #tempM2 T
+				LEFT JOIN dbo.BankCommission b  ON b.DateOfBankCommission=T.DateOfCommission AND b.Active=1
+				LEFT JOIN dbo.PayerConfig x  ON T.IdGateway=x.IdGateway AND T.IdPayer=x.IdPayer AND T.IdPaymentType=x.IdPaymentType AND x.IdCountryCurrency=T.IdCountryCurrency AND IdPayerConfig NOT IN (711,807)
+				LEFT JOIN dbo.PayerConfigCommission p  ON p.DateOfPayerConfigCommission=T.DateOfCommission AND x.IdPayerConfig=p.IdPayerConfig AND p.Active=1
+				GROUP BY CASE WHEN @Type=1 THEN T.IdState WHEN @Type=2 THEN T.IdGateway WHEN @Type=3 THEN T.IdCountry WHEN @Type=4 THEN T.IdUserSeller END 
+			
+				UNION ALL
+		
+				SELECT SUM(1)*-1 AS NumTran,SUM(T.AmountInDollars-(CASE WHEN T.IdAgentCollectType=1 THEN 0 ELSE ISNULL(T.AmountInDollarsForCommission*b.FactorNew,0) END)-(ISNULL(p.CommissionNew,0)))*-1 AmountInDollars, CASE WHEN @Type=1 THEN T.IdState WHEN @Type=2 THEN T.IdGateway WHEN @Type=3 THEN T.IdCountry WHEN @Type=4 THEN T.IdUserSeller END IdGeneric
+				FROM #tempM3 T
+				LEFT JOIN dbo.BankCommission b  ON b.DateOfBankCommission=T.DateOfCommission AND b.Active=1
+				LEFT JOIN dbo.PayerConfig x  ON T.IdGateway=x.IdGateway AND T.IdPayer=x.IdPayer AND T.IdPaymentType=x.IdPaymentType AND x.IdCountryCurrency=T.IdCountryCurrency AND IdPayerConfig NOT IN (711,807)
+				LEFT JOIN dbo.PayerConfigCommission p  ON p.DateOfPayerConfigCommission=T.DateOfCommission AND x.IdPayerConfig=p.IdPayerConfig AND p.Active=1
+				GROUP BY CASE WHEN @Type=1 THEN T.IdState WHEN @Type=2 THEN T.IdGateway WHEN @Type=3 THEN T.IdCountry WHEN @Type=4 THEN T.IdUserSeller END
+			
+				UNION ALL
+		
+				SELECT SUM(1)*-1 AS NumTran,SUM(T.AmountInDollars-(CASE WHEN T.IdAgentCollectType=1 THEN 0 ELSE ISNULL(T.AmountInDollarsForCommission*b.FactorNew,0) END)-(ISNULL(p.CommissionNew,0)))*-1 AmountInDollars, CASE WHEN @Type=1 THEN T.IdState WHEN @Type=2 THEN T.IdGateway WHEN @Type=3 THEN T.IdCountry WHEN @Type=4 THEN T.IdUserSeller END IdGeneric
+				FROM #tempM4 T
+				LEFT JOIN dbo.BankCommission b  ON b.DateOfBankCommission=T.DateOfCommission AND b.Active=1
+				LEFT JOIN dbo.PayerConfig x  ON T.IdGateway=x.IdGateway AND T.IdPayer=x.IdPayer AND T.IdPaymentType=x.IdPaymentType AND x.IdCountryCurrency=T.IdCountryCurrency AND IdPayerConfig NOT IN (711,807)
+				LEFT JOIN dbo.PayerConfigCommission p  ON p.DateOfPayerConfigCommission=T.DateOfCommission AND x.IdPayerConfig=p.IdPayerConfig AND p.Active=1
+				GROUP BY CASE WHEN @Type=1 THEN T.IdState WHEN @Type=2 THEN T.IdGateway WHEN @Type=3 THEN T.IdCountry WHEN @Type=4 THEN T.IdUserSeller END 
+			) LT
+		GROUP BY LT.IdGeneric;
+
+		CREATE TABLE #T0
+		(
+			IdGeneric INT 
+		);
+
+		IF (@Type=1)
+		BEGIN
+			INSERT INTO #T0
+			SELECT DISTINCT s.IdState AS IdGeneric 
+			FROM dbo.Agent 
+			JOIN  dbo.State s  ON s.IdCountry=18 AND AgentState=s.StateCode
+			WHERE IdAgentStatus IN (SELECT id FROM @tStatus) AND (@IsAllSeller = 1 OR (IdUserSeller = @IdUserSeller OR IdUserSeller IN (SELECT IdSeller FROM #SellerSubordinates)));
+		END;
+
+		IF (@Type=2)
+		BEGIN
+			IF (ISNULL(@IdGateway,0)=0)
+			BEGIN
+
+				SELECT DISTINCT t.IdGeneric INTO #TMPGateway FROM
+				(
+					SELECT DISTINCT IdGeneric FROM #T1
+					UNION ALL
+					SELECT DISTINCT IdGeneric FROM #T2
+					UNION ALL
+					SELECT DISTINCT IdGeneric FROM #T3
+					UNION ALL
+					SELECT DISTINCT IdGeneric FROM #T4
+					UNION ALL
+					SELECT DISTINCT IdGeneric FROM #T5
+					UNION ALL
+					SELECT DISTINCT IdGeneric FROM #T6
+				)t;
+
+				INSERT INTO #T0
+				SELECT IdGateway AS IdGeneric FROM dbo.Gateway  WHERE /*status=1 AND */IdGateway IN 
+				(
+					SELECT IdGeneric FROM #TMPGateway
+				);
+			END;
+			ELSE
+			BEGIN
+				INSERT INTO #T0
+				SELECT IdGateway AS IdGeneric FROM dbo.Gateway  WHERE /*status=1 AND */IdGateway = @IdGateway;
+			END;
+		END;
+
+		IF (@Type=3)
+		BEGIN
+			IF (ISNULL(@IdCountry,0)=0)
+			BEGIN
+
+				SELECT DISTINCT t.IdGeneric INTO #TMPCountry FROM
+				(
+					SELECT DISTINCT IdGeneric FROM #T1
+					UNION ALL
+					SELECT DISTINCT IdGeneric FROM #T2
+					UNION ALL
+					SELECT DISTINCT IdGeneric FROM #T3
+					UNION ALL
+					SELECT DISTINCT IdGeneric FROM #T4
+					UNION ALL
+					SELECT DISTINCT IdGeneric FROM #T5
+					UNION ALL
+					SELECT DISTINCT IdGeneric FROM #T6
+				)t;
+
+				INSERT INTO #T0
+				SELECT IdCountry AS IdGeneric FROM dbo.Country  WHERE IdCountry IN
+				(
+					SELECT IdGeneric FROM #TMPCountry
+				);
+			END;
+			ELSE
+			BEGIN
+				INSERT INTO #T0
+				SELECT IdCountry AS IdGeneric FROM dbo.Country  WHERE IdCountry=@IdCountry;
+			END;
+		END;
+
+		IF (@Type=4)
+		BEGIN
+			IF (ISNULL(@IdUserSeller,0)=0)
+			BEGIN
+				IF (ISNULL(@IsAllSeller,0)=0)
+				BEGIN
+					INSERT INTO #T0
+						SELECT a.IdSeller FROM #SellerSubordinates a
+						JOIN dbo.Users u  ON a.IdSeller=u.IdUser
+						WHERE  u.IdGenericStatus IN (1, 3);
+				END;
+				ELSE
+				BEGIN
+					INSERT INTO #T0
+					SELECT DISTINCT a.IdUserSeller AS IdGeneric 
+					FROM dbo.Agent a 
+					JOIN dbo.Users u  ON a.IdUserSeller=u.IdUser
+					WHERE  u.IdGenericStatus IN (1, 3) OR a.IdUserSeller IN (4271);
+				END;
+			END;
+			ELSE
+			BEGIN    
+				INSERT INTO #T0
+				SELECT DISTINCT a.IdUserSeller AS IdGeneric 
+				FROM dbo.Agent a 
+				JOIN dbo.Users u  ON a.IdUserSeller=u.IdUser
+				WHERE  u.IdGenericStatus IN (1, 3) AND a.IdUserSeller=@IdUserSeller;
+			END;
+		END;
+
+		CREATE TABLE #T7
+		(
+		IdGeneric INT,
+		TotalThreeMonthAgo INT,
+		TotalAmountInDollarsThreeMonthAgo MONEY,
+		TotalTwoMonthAgo INT,
+		TotalAmountInDollarsTwoMonthAgo MONEY,
+		TotalOneMonthAgo INT,
+		TotalAmountInDollarsOneMonthAgo MONEY,
+		TotalCurrentMonth INT,
+		TotalAmountInDollarsCurrentMonth MONEY,
+		TransfersStatusToTarget INT,
+		TransferTarget DECIMAL(9,2),
+		TargetColor INT,
+		TotalWeekAgo INT,
+		TotalToday INT,
+		TotalColor INT,
+		TotalStatus INT
+		);
+
+		INSERT #T7 (IdGeneric,TotalThreeMonthAgo,TotalAmountInDollarsThreeMonthAgo,TotalTwoMonthAgo,TotalAmountInDollarsTwoMonthAgo,TotalOneMonthAgo,TotalAmountInDollarsOneMonthAgo,
+		TotalCurrentMonth,TotalAmountInDollarsCurrentMonth,TotalWeekAgo,TotalToday)
+		SELECT ISNULL(A.IdGeneric,ISNULL(B.IdGeneric,ISNULL(C.IdGeneric,ISNULL(D.IdGeneric,ISNULL(E.IdGeneric,ISNULL(F.IdGeneric,ISNULL(G.IdGeneric,NULL))))))), --#1
+		--Select A.IdGeneric,
+		F.TotalThreeMonthAgo,F.TotalAmountInDollarsThreeMonthAgo,E.TotalTwoMonthAgo,E.TotalAmountInDollarsTwoMonthAgo,D.TotalOneMonthAgo,D.TotalAmountInDollarsOneMonthAgo,
+		G.TotalCurrentMonth,G.TotalAmountInDollarsCurrentMonth,B.TotalWeeksAgo,C.TotalToday FROM #T0 A
+		FULL JOIN #T1 B ON (A.IdGeneric=B.IdGeneric)
+		FULL JOIN #T2 C ON (A.IdGeneric=C.IdGeneric)
+		FULL JOIN #T3 D ON (A.IdGeneric=D.IdGeneric)
+		FULL JOIN #T4 E ON (A.IdGeneric=E.IdGeneric)
+		FULL JOIN #T5 F ON (A.IdGeneric=F.IdGeneric)
+		FULL JOIN #T6 G ON (A.IdGeneric=G.IdGeneric);
+
+		UPDATE #T7 SET TotalThreeMonthAgo=0 WHERE TotalThreeMonthAgo IS NULL;
+		UPDATE #T7 SET TotalTwoMonthAgo=0 WHERE TotalTwoMonthAgo IS NULL;
+		UPDATE #T7 SET TotalOneMonthAgo=0 WHERE TotalOneMonthAgo IS NULL;
+		UPDATE #T7 SET TotalCurrentMonth=0 WHERE TotalCurrentMonth IS NULL;
+		UPDATE #T7 SET TotalWeekAgo=0 WHERE TotalWeekAgo IS NULL;
+		UPDATE #T7 SET TotalToday=0 WHERE TotalToday IS NULL;
+		--nuevo
+		UPDATE #T7 SET TotalAmountInDollarsOneMonthAgo=0 WHERE TotalAmountInDollarsOneMonthAgo IS NULL;
+		UPDATE #T7 SET TotalAmountInDollarsTwoMonthAgo=0 WHERE TotalAmountInDollarsTwoMonthAgo IS NULL;
+		UPDATE #T7 SET TotalAmountInDollarsThreeMonthAgo=0 WHERE TotalAmountInDollarsThreeMonthAgo IS NULL;
+		UPDATE #T7 SET TotalAmountInDollarsCurrentMonth=0 WHERE TotalAmountInDollarsCurrentMonth IS NULL;
+
+		UPDATE #T7 SET TransferTarget=((TotalThreeMonthAgo+TotalTwoMonthAgo+TotalOneMonthAgo)/3)*(1+(@Increment/100));
+		UPDATE #T7 SET TotalStatus=TotalToday-TotalWeekAgo;
+		UPDATE #T7 SET TransfersStatusToTarget=TotalCurrentMonth-((@DayOfMonth*TransferTarget)/@TotalDaysOfCurrentMonth);
+		UPDATE #T7 SET TargetColor=CASE  WHEN TransfersStatusToTarget>0 THEN 1 WHEN  TransfersStatusToTarget<0 THEN 2 WHEN TransfersStatusToTarget=0 THEN 0 END;
+		UPDATE #T7 SET TotalColor=CASE  WHEN TotalStatus>0 THEN 1 WHEN  TotalStatus<0 THEN 2 WHEN TotalStatus=0 THEN 0 END;
+
+		SELECT     
+			t.IdGeneric,
+			CASE WHEN @Type=1 THEN s.StateCode WHEN @Type=2 THEN g.GatewayName WHEN @Type=3 THEN c.CountryName WHEN @Type=4 THEN u.UserName END GenricName,
+    
+			t.TotalThreeMonthAgo,
+			ROUND(CASE t.TotalThreeMonthAgo WHEN 0 THEN 0 ELSE t.TotalAmountInDollarsThreeMonthAgo/CASE WHEN t.TotalThreeMonthAgo>0 THEN 1* t.TotalThreeMonthAgo ELSE -1* t.TotalThreeMonthAgo END  END,2) AverageAmountInDollarsThreeMonthAgo,
+        
+			t.TotalTwoMonthAgo,
+			ROUND(CASE t.TotalTwoMonthAgo WHEN 0 THEN 0 ELSE t.TotalAmountInDollarsTwoMonthAgo/CASE WHEN t.TotalTwoMonthAgo >0 THEN 1*  t.TotalTwoMonthAgo ELSE -1*  t.TotalTwoMonthAgo END  END,2) AverageAmountInDollarsTwoMonthAgo,
+        
+			t.TotalOneMonthAgo,
+			ROUND(CASE t.TotalOneMonthAgo WHEN 0 THEN 0 ELSE t.TotalAmountInDollarsOneMonthAgo/CASE WHEN t.TotalOneMonthAgo > 0 THEN 1* t.TotalOneMonthAgo ELSE -1* t.TotalOneMonthAgo END  END,2) AverageAmountInDollarsOneMonthAgo,
+        
+			t.TotalCurrentMonth,
+			ROUND(CASE t.TotalCurrentMonth WHEN 0 THEN 0 ELSE t.TotalAmountInDollarsCurrentMonth/CASE WHEN t.TotalCurrentMonth > 0 THEN 1* t.TotalCurrentMonth ELSE -1* t.TotalCurrentMonth END  END,2) TotalAmountInDollarsCurrentMonth,
+        
+			t.TransfersStatusToTarget,
+			ROUND(t.TransferTarget,0) TransferTarget,
+			t.TargetColor,t.TotalWeekAgo,
+			t.TotalToday,
+			t.TotalColor,
+			t.TotalStatus,
+			ISNULL(@Country,'') Country, 
+			ISNULL(@Gateway,'') Gateway, 
+			ISNULL(@Payer,'') Payer
+		FROM #T7 t
+		LEFT JOIN dbo.State s  ON s.IdState=t.IdGeneric
+		LEFT JOIN dbo.Gateway g  ON g.IdGateway=t.IdGeneric
+		LEFT JOIN dbo.Country c  ON c.IdCountry=t.IdGeneric
+		LEFT JOIN dbo.Users u  ON u.IdUser=t.IdGeneric
+		ORDER BY  GenricName;
+		;
+
+
+	END TRY
+	BEGIN CATCH
+
+		DECLARE @ErrorMessage NVARCHAR(4000);
+		DECLARE @ErrorSeverity INT;
+		DECLARE @ErrorState INT;
+    
+		SELECT 
+			@ErrorMessage = ERROR_MESSAGE(),
+			@ErrorSeverity = ERROR_SEVERITY(),
+			@ErrorState = ERROR_STATE();
+    
+		RAISERROR (@ErrorMessage, @ErrorSeverity, @ErrorState);		
+
+	END CATCH;
+END;
+
