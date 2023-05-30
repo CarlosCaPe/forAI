@@ -1,708 +1,1287 @@
-USE MaxiDEV
+USE MAXI;
 GO
 
+BEGIN TRY
+
+    SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+
+    DECLARE @BeginDate DATETIME = '2022-04-20';
+    DECLARE @EndDate DATETIME = '2022-04-21';
+
+    DECLARE @IAgentStatusDisable INT;
+    SET @IAgentStatusDisable = 2;
 
 
-DECLARE @BeginDate DATETIME = '2022-04-20'
-DECLARE @EndDate DATETIME ='2022-04-21'
+    DROP TABLE IF EXISTS #SellerSubordinates,
+                         #items,
+                         #SellerTree,
+                         #T1,
+                         #tempT1,
+                         #tempT2,
+                         #tempT3,
+                         #tempT4,
+                         #T2,
+                         #T3,
+                         #T4,
+                         #T5,
+                         #T6,
+                         #T0,
+                         #T7,
+                         #TempM1,
+                         #TempM2,
+                         #TempM3,
+                         #TempM4,
+                         #agentTemp,
+                         #tempOP,
+                         #temp21,
+                         #temp1,
+                         #temp22,
+                         #temp2,
+                         #checks,
+                         #tempFinal,
+                         #CP,
+                         #ProfitOPtabla,
+                         #Activity,
+                         #temp23,
+                         #temp24,
+                         #temp25,
+                         #temp9,
+                         #temp10,
+                         #temp15,
+                         #temp11,
+                         #temp12,
+                         #temp13,
+                         #temp14,
+                         #tempSC,
+                         #ProfitTabla,
+                         #AgentActivity,
+                         #TmpDelete;
 
-declare @IAgentStatusDisable int                        
-set @IAgentStatusDisable = 2          
-  
+    DECLARE @Money AS MONEY;
+    SET @Money = 0;
 
-		DROP TABLE IF EXISTS #SellerSubordinates
-							,#items
-							,#SellerTree
-							,#T1
-							,#tempT1
-							,#tempT2
-							,#tempT3
-							,#tempT4
-							,#T2
-							,#T3
-							,#T4
-							,#T5
-							,#T6
-							,#T0
-							,#T7
-							,#TempM1
-							,#TempM2
-							,#TempM3
-							,#TempM4​
-							,#agentTemp
-							,#tempOP
-							,#temp21
-							,#temp1
-							,#temp22
-							,#temp2,#checks,#tempFinal,#CP,#ProfitOPtabla,#Activity
-							,#temp23,#temp24,#temp25,#temp9,#temp10,#temp15,#temp11,#temp12,#temp13,#temp14,#tempSC,#ProfitTabla,#AgentActivity,#TmpDelete
-							;
-        
-Declare @Money as Money         
-Set @Money=0         
-                      
-set @BeginDate=dbo.RemoveTimeFromDatetime(@BeginDate)                        
-set @EndDate=dbo.RemoveTimeFromDatetime(@EndDate+1)  
-declare @EndDate2 datetime
-set @EndDate2 = @EndDate
-if @EndDate = dbo.RemoveTimeFromDatetime(GETDATE()+1) --es hoy la fecha final?
-BEGIN
-	set @EndDate2 = @EndDate2 -2
-END
-ELSE
-BEGIN
-	SET @EndDate2 = @EndDate2 -1 
-END
-print @EndDate2
+    SET @BeginDate = dbo.RemoveTimeFromDatetime(@BeginDate);
+    SET @EndDate = dbo.RemoveTimeFromDatetime(@EndDate + 1);
+    DECLARE @EndDate2 DATETIME;
+    SET @EndDate2 = @EndDate;
+    IF @EndDate = dbo.RemoveTimeFromDatetime(GETDATE() + 1) --es hoy la fecha final?
+    BEGIN
+        SET @EndDate2 = @EndDate2 - 2;
+    END;
+    ELSE
+    BEGIN
+        SET @EndDate2 = @EndDate2 - 1;
+    END;
+    PRINT @EndDate2;
 
 
- Select                         
- A.IdAgent,                        
- A.AgentCode as Agent,  
- f.IdAgentStatus,                        
- S.AgentStatus,  
- A.AgentPhone,  
- --A.ACHWellsFargo,  
- A.IdAgentCollectType,
- case (IdAgentCollectType)   
-    when 1 then ''   
-    when 2 then ''   
-    else isnull(D.BankName,'')  
- end BankName,   
- case (A.IdAgentStatus)   
- when 1 then 1  
- when 3 then 3  
- when 4 then 2   
- end  
- AgentOrder,
- A.idAgentPaymentSchema,
- s2.IdAgentStatus as IdAgentCurrentStatus,
- s2.AgentStatus as AgentCurrentStatusName  
- into #agentTemp                        
- from Agent A                        
- join agentfinalstatushistory f on DateOfAgentStatus=@EndDate2 and f.idagent=a.idagent
- inner join AgentStatus S on S.IdAgentStatus = f.IdAgentStatus
- left join AgentBankDeposit D on A.IdAgentBankdeposit=D.IdAgentBankdeposit
- join agentstatus s2 on a.IdAgentStatus = s2.IdAgentStatus
- --where f.IdAgentStatus!= @IAgentStatusDisable  --and  A.IdAgentStatus!= @IAgentStatusWriteOff     
-                 
+    SELECT A.IdAgent,
+           A.AgentCode AS Agent,
+           f.IdAgentStatus,
+           S.AgentStatus,
+           A.AgentPhone,
+           --A.ACHWellsFargo,  
+           A.IdAgentCollectType,
+           CASE (A.IdAgentCollectType)
+               WHEN 1 THEN
+                   ''
+               WHEN 2 THEN
+                   ''
+               ELSE
+                   ISNULL(D.BankName, '')
+           END BankName,
+           CASE (A.IdAgentStatus)
+               WHEN 1 THEN
+                   1
+               WHEN 3 THEN
+                   3
+               WHEN 4 THEN
+                   2
+           END AgentOrder,
+           A.IdAgentPaymentSchema,
+           s2.IdAgentStatus AS IdAgentCurrentStatus,
+           s2.AgentStatus AS AgentCurrentStatusName
+    INTO #agentTemp
+    FROM dbo.Agent A
+        JOIN dbo.AgentFinalStatusHistory f
+            ON f.DateOfAgentStatus = @EndDate2
+               AND f.IdAgent = A.IdAgent
+        INNER JOIN dbo.AgentStatus S
+            ON S.IdAgentStatus = f.IdAgentStatus
+        LEFT JOIN dbo.AgentBankDeposit D
+            ON A.IdAgentBankDeposit = D.IdAgentBankDeposit
+        JOIN dbo.AgentStatus s2
+            ON A.IdAgentStatus = s2.IdAgentStatus;
+    --where f.IdAgentStatus!= @IAgentStatusDisable  --and  A.IdAgentStatus!= @IAgentStatusWriteOff     
 
-Create clustered index idxTemp on  #agentTemp (IdAgent)                       
-                 
-                        
-declare @tResult table                        
-(                        
- IdAgent int,                        
- Agent varchar(200),                        
- AgentStatus varchar(20),   
- IdAgentStatus int,  
- AgentPhone varchar(max),  
- AgentOrder int,  
- ACHWellsFargo varchar(20),  
- BankName varchar(max),  
- DateOfLastDeposit datetime,                        
- DateOfLastMovement datetime,                        
- LastBalance money,                        
- NumberTransactions int,                        
- TransfersAmount money,                        
- CommissionTransfersAmount money,                        
- DepositAmount money,                        
- RejectedAmount money,                        
- CancelledAmount money,                        
- OtherChargeAmount money,                        
- CurrentBalance money,                        
- DebitOrCredit varchar(50),
- IdAgentPaymentSchema int,
- IdAgentCurrentStatus int,
- AgentCurrentStatusName nvarchar(max)  
-)                        
-          
- DELETE FROM #agentTemp WHERE IdAgentStatus = @IAgentStatusDisable AND IdAgent NOT IN (SELECT DISTINCT IdAgent FROM AgentBalance WHERE DateOfMovement >= @BeginDate AND DateOfMovement < @EndDate)          
-		          
- INSERT INTO  @tResult (IdAgent,Agent,AgentStatus,IdAgentStatus,AgentPhone,ACHWellsFargo,BankName,AgentOrder,IdAgentPaymentSchema,IdAgentCurrentStatus,AgentCurrentStatusName)                
- SELECT IdAgent,Agent,AgentStatus,IdAgentStatus,AgentPhone,CASE (IdAgentCollectType) WHEN 1 THEN 'ACH' WHEN 2 THEN 'ACH with Scanner' ELSE 'Deposit' END,
- BankName,AgentOrder,IdAgentPaymentSchema,IdAgentCurrentStatus,AgentCurrentStatusName 
- FROM #agentTemp                
-      
-      
-SELECT t0.IdAgent,      
-SUM (CASE WHEN t3.IsDebit = 1 THEN 1 ELSE 0 END) AS OPNumTrans,      
-SUM (CASE WHEN t3.IsDebit = 0 THEN 1 ELSE 0 END) AS OPNumCancels,      
-SUM (CASE WHEN t3.IsDebit = 1 THEN t2.TotalAmount ELSE 0 END) AS OPAmount,      
-SUM (CASE WHEN t3.IsDebit = 0 THEN t2.TotalAmount ELSE 0 END) AS OPAmountCancel,      
-SUM (CASE WHEN t1.IsMonthly = 1 THEN t2.Fee ELSE t1.Commission END) AS OPCommission      
-INTO #tempOP
-FROM #agentTemp t0
-JOIN  AgentBalance t1 WITH(NOLOCK) ON t0.idAgent = t1.idAgent
-JOIN AgentBalanceDetail t2 WITH(NOLOCK) ON t1.IdAgentBalance = t2.IdAgentBalance
-JOIN AgentBalanceHelper t3 WITH(NOLOCK) ON (t1.typeofMovement = t3.typeofmovement)
-INNER JOIN operation.ProductTransfer AS op WITH (NOLOCK) ON t1.IdTransfer=op.IdProductTransfer AND t3.IdOtherProduct=op.IdOtherProduct--#2
-WHERE (t1.DateOfMovement >= @BeginDate AND t1.DateOfMovement < @EndDate) AND T3.[IdOtherProduct] != 15 -- Checks view like Deposits       
-GROUP BY t0.idAgent      
-        
-                 
- SELECT COUNT(1) AS TransferNum,ISNULL(SUM(AmountInDollars),0) AS TransferAmount,A.IdAgent,ISNULL(SUM(TotalAmountToCorporate-AmountInDollars),0) AS Commission                 
- INTO #temp1                
- FROM Transfer A WITH(NOLOCK) JOIN #agentTemp B ON (A.IdAgent=B.IdAgent)                
- WHERE DateOfTransfer>=@BeginDate AND DateOfTransfer<@EndDate                  
- GROUP BY A.IdAgent                
-                
-               
- SELECT COUNT(1) AS TransferNumRejected,ISNULL(SUM(TotalAmountToCorporate),0) AS TransferAmountRejected,A.IdAgent,ISNULL(SUM(AgentCommission),0) AS CommissionRej                 
- INTO #temp21                
- FROM Transfer A WITH(NOLOCK) JOIN #agentTemp B ON (A.IdAgent=B.IdAgent)                
- WHERE DateStatusChange>=@BeginDate AND DateStatusChange<@EndDate              
- AND IdStatus IN (31)                  
- GROUP BY A.IdAgent                
-               
-               
- SELECT COUNT(1) AS TransferNumCancelled,ISNULL(SUM(AmountInDollars),0) AS TransferAmountCancelled,A.IdAgent,ISNULL(SUM(AgentCommission),0) AS CommissionCan                  
- INTO #temp22                
- FROM Transfer A WITH(NOLOCK) JOIN #agentTemp B ON (A.IdAgent=B.IdAgent)                
- WHERE DateStatusChange>=@BeginDate AND DateStatusChange<@EndDate              
- AND IdStatus IN (22)                  
- GROUP BY A.IdAgent                
-               
-               
-                 
- SELECT COUNT(1) AS TransferNumClosed,ISNULL(SUM(AmountInDollars),0) AS TransferAmountClosed,A.IdAgent,ISNULL(SUM(TotalAmountToCorporate-AmountInDollars),0) AS CommissionClosed                  
- INTO #temp2                
- FROM TransferClosed A WITH(NOLOCK) JOIN  #agentTemp B ON (A.IdAgent=B.IdAgent)                
- WHERE DateOfTransfer>=@BeginDate AND DateOfTransfer<@EndDate                  
- GROUP BY A.IdAgent                 
-               
-               
- SELECT COUNT(1) AS TransferNumClosedRejected,ISNULL(SUM(TotalAmountToCorporate),0) AS TransferAmountClosedRejected,A.IdAgent,ISNULL(SUM(AgentCommission),0) AS CommissionClosedRej                 
- INTO #temp23                
- FROM TransferClosed A WITH(NOLOCK) JOIN #agentTemp B ON (A.IdAgent=B.IdAgent)                
- WHERE DateStatusChange>=@BeginDate AND DateStatusChange<@EndDate              
- AND IdStatus IN (31)                  
- GROUP BY A.IdAgent                
-               
-               
- SELECT COUNT(1) AS TransferNumClosedCancelled,ISNULL(SUM(AmountInDollars),0) AS TransferAmountClosedCancelled,A.IdAgent,ISNULL(SUM(AgentCommission),0) AS CommissionClosedCan                 
- INTO #temp24                
- FROM TransferClosed A WITH(NOLOCK) JOIN #agentTemp B ON (A.IdAgent=B.IdAgent)                
- WHERE DateStatusChange>=@BeginDate AND DateStatusChange<@EndDate              
- AND IdStatus IN (22)                  
- GROUP BY A.IdAgent                
-               
-      
-SELECT ISNULL(SUM(CASE WHEN DebitOrCredit='Debit' THEN A.Amount ELSE A.Amount*-1 END),0) AS TransferAmountCancelledBalance,A.IdAgent    
- INTO #temp25      
- FROM AgentBalance A WITH(NOLOCK) JOIN #agentTemp B ON (A.IdAgent=B.IdAgent)                
- WHERE A.DateOfMovement>=@BeginDate AND A.DateOfMovement<@EndDate              
- AND A.TypeOfMovement='CANC'                  
- GROUP BY A.IdAgent                
-    
-    
-                 
- SELECT ISNULL(SUM(Amount),0) AS Deposit,A.IdAgent                 
- INTO #temp9                
- FROM AgentDeposit A WITH(NOLOCK) JOIN  #agentTemp B ON (A.IdAgent=B.IdAgent)                
- WHERE DateOfLastChange>=@BeginDate AND DateOfLastChange<@EndDate                  
- GROUP BY A.IdAgent                 
-                 
-                
- SELECT ISNULL(SUM(CASE WHEN DebitOrCredit='Credit' THEN Amount ELSE Amount*-1 END),0) AS OtherCharge,A.IdAgent                 
- INTO #temp10                
- FROM AgentBalance A WITH(NOLOCK) JOIN  #agentTemp B ON (A.IdAgent=B.IdAgent)                
- WHERE DateOfMovement>=@BeginDate AND DateOfMovement<@EndDate AND (TypeOfMovement='CGO' OR [TypeOfMovement] = 'CHNFS')
- GROUP BY A.IdAgent                 
-                 
 
-   SELECT MAX(DateOfMovement) AS DateOfMovement, IdAgent                
-   INTO #temp15                
-   FROM AgentBalance WITH(NOLOCK)            
-   WHERE DateOfMovement<@EndDate  
-   GROUP BY IdAgent                
-                   
-   SELECT Balance,A.IdAgent,a.IdAgentBalance--                 
-   INTO #temp11                
-   FROM AgentBalance A WITH(NOLOCK)               
-   JOIN #temp15 B ON (A.DateOfMovement=B.DateOfMovement AND A.IdAgent=B.IdAgent)                
-    --where not (A.TypeOfMovement='CGO' and ( A.Description like '% Retransfer Credit - Folio:%' or  A.Description like '% Oklahoma State Fee - Folio:%' ) ) --#3    
-	
-	/************************************************************/--#3
-	SELECT IdAgentBalance INTO #TmpDelete
-	  FROM (
-			SELECT IdAgentBalance, Flag = ROW_NUMBER() OVER(PARTITION BY IdAgent ORDER BY IdAgentBalance DESC)
-			  FROM #temp11
-	       ) AS t
-	 WHERE 1 = 1
-	   AND Flag > 1
+    CREATE CLUSTERED INDEX idxTemp ON #agentTemp (IdAgent);
 
-	  DELETE FROM #temp11 WHERE 1 = 1 AND IdAgentBalance IN (SELECT IdAgentBalance FROM #TmpDelete);
-       /************************************************************/ --#3      
-                
- Select Max(IdAgentDeposit) as IdAgentDeposit, IdAgent                
- Into #temp12                
- from Agentdeposit with(nolock)              
- Group by IDAgent                
-                   
- Select DateOfLastChange as LastDeposit,A.IdAgent                 
- Into #temp13                
- from  Agentdeposit A  with(nolock)              
- Join #temp12 B on (A.IdAgentDeposit=B.IdAgentDeposit)                
-                 
-                   
- Select Max(DateOfMovement) as DateOfMovement, IdAgent                
- Into #temp14                
- from AgentBalance with(nolock)             
- Where TypeOfMovement='TRAN'                
- Group by IdAgent                
-    
- Select  SC.IdAgent, SUM(SC.Commission) SpecialCommission        
- Into #tempSC                
- from [dbo].[SpecialCommissionBalance]  SC
- WHERE SC.[DateOfApplication]>= @BeginDate AND SC.[DateOfApplication]<@EndDate
- Group by SC.IdAgent 
- 
- select idagent, count(1) totchecks,sum(amount) amountChecks  into #checks
- from  checks with(nolock)
- where idstatus in (20,21,30)  and DateOfMovement>= @BeginDate AND DateOfMovement<@EndDate--#1
- group by idagent		             
-             
- Select A.*,B.TransferNum,B.TransferAmount,                 
- C.TransferNumClosed,C.TransferAmountClosed,                
- B.Commission,              
- O.CommissionRej,              
- P.CommissionCan,              
- C.CommissionClosed,              
- Q.CommissionClosedRej,              
- R.CommissionClosedCan,                
- O.TransferNumRejected,              
- O.TransferAmountRejected,              
- P.TransferNumCancelled,              
- P.TransferAmountCancelled,              
- Q.TransferNumClosedRejected,              
- Q.TransferAmountClosedRejected,              
- R.TransferNumClosedCancelled,              
- R.TransferAmountClosedCancelled,              
- J.Deposit,K.OtherCharge,                
- L.Balance,M.LastDeposit,N.DateOfMovement,        
- S.OPNumTrans,S.OPNumCancels,S.OPAmount,S.OPCommission, S.OPAmountCancel,W.TransferAmountCancelledBalance ,
- isnull(SC.SpecialCommission,0) SpecialCommission,
- isnull(ch.totchecks,0) totchecks,
- isnull(ch.amountChecks,0) amountChecks,
- --GETDATE() as DateOfStatusChange
- case 
- when (select COUNT(DateOfchange) from AgentStatusHistory with(nolock) where IdAgent=A.IdAgent) = 0
- then
-	(select OpenDate from Agent with(nolock) where IdAgent=A.IdAgent)
- else
-	(select top 1 DateOfchange from AgentStatusHistory with(nolock) where IdAgent=A.IdAgent order by DateOfchange desc) 
- end As DateOfStatusChange
-	
- Into #tempFinal                
- from @tResult A                
- Left Join #temp1 B on (A.IdAgent=B.IdAgent)                
- Left Join #temp2 C on (A.IdAgent=C.IdAgent)                
- Left Join #temp9 J on (A.IdAgent=J.IdAgent)                
- Left Join #temp10 K on (A.IdAgent=K.IdAgent)                
- Left Join #temp11 L on (A.IdAgent=L.IdAgent)                
- Left Join #temp13 M on (A.IdAgent=M.IdAgent)                
- Left Join #temp14 N on (A.IdAgent=N.IdAgent)                
- Left Join #temp21 O on (A.IdAgent=O.IdAgent)              
- Left Join #temp22 P on (A.IdAgent=P.IdAgent)              
- Left Join #temp23 Q on (A.IdAgent=Q.IdAgent)            
- Left Join #temp24 R on (A.IdAgent=R.IdAgent)        
- Left Join #tempOP S on (A.IdAgent=S.IdAgent)    
- Left Join #temp25 W on (A.IdAgent=W.IdAgent)
- Left Join #tempSC SC on (A.IdAgent=SC.IdAgent) 
- left join #checks ch on (a.IdAgent=ch.IdAgent)      
- --Left Join #tempCBP T on (A.IdAgent=T.IdAgent)      
- --Left Join #tempCP V on (A.IdAgent=V.IdAgent)                
-                  
- Update  #tempFinal set NumberTransactions=isNull(TransferNum,0)+isNull(TransferNumClosed,0)-isNull(TransferNumRejected,0)-isNull(TransferNumCancelled,0)-isNull(TransferNumClosedRejected,0)-isNull(TransferNumClosedCancelled,0)                
- Update  #tempFinal set TransfersAmount=isNull(TransferAmount,0)+isNull(TransferAmountClosed,0)                  
- Update  #tempFinal set CommissionTransfersAmount=isNull(Commission,0)+isNull(CommissionClosed,0)               
- Update  #tempFinal set RejectedAmount=(isNull(TransferAmountRejected,0)+isNull(TransferAmountClosedRejected,0))*-1               
- Update  #tempFinal set CancelledAmount=(isNull(TransferAmountCancelledBalance,0))                
- Update  #tempFinal set DepositAmount=isNull(Deposit*-1,0)                
- Update  #tempFinal set OtherChargeAmount=isNull(OtherCharge*-1,0)                
- Update  #tempFinal set CurrentBalance=isNull(Balance,0)                
- Update  #tempFinal set DateOfLastDeposit=isnull(LastDeposit,'')                
- Update  #tempFinal set DateOfLastMovement=isnull(DateOfMovement,''),OPAmountCancel=isnull(OPAmountCancel,0),OPAmount=isnull(OPAmount,0)        
- Update  #tempFinal set OPNumTrans= isnull(OPNumTrans,0)-isnull(OPNumCancels,0),OPCommission=isnull(OPCommission,0)            
- Update  #tempFinal set LastBalance=CurrentBalance-TransfersAmount-OtherChargeAmount-DepositAmount-CommissionTransfersAmount-CancelledAmount-RejectedAmount-OPAmount-OPAmountCancel+ ( case when idAgentPaymentSchema=1  then 0 else OPCommission end )
-      
-select    
-    AC.IDAGENT,         
-    (select top 1 idagentcollectiondetail from agentcollectiondetail with(nolock) where DateofLastChange <=@BeginDate and idagentcollection=ac.IdAgentCollection  order by IdAgentCollectionDetail desc) idcp1,      
-    (select top 1 idagentcollectiondetail from agentcollectiondetail with(nolock) where DateofLastChange <=@EndDate and idagentcollection=ac.IdAgentCollection  order by IdAgentCollectionDetail) idcp2,  
-    (select top 1 idagentcollectiondetail from agentcollectiondetail with(nolock) where DateofLastChange <=@EndDate and idagentcollection=ac.IdAgentCollection  order by IdAgentCollectionDetail desc) idfcp    ,  
-  
-    (select top 1 ActualAmountToPay from agentcollectiondetail with(nolock) where DateofLastChange <=@BeginDate and idagentcollection=ac.IdAgentCollection  order by IdAgentCollectionDetail desc) cp1,      
-    (select top 1 ActualAmountToPay from agentcollectiondetail with(nolock) where DateofLastChange <=@EndDate and idagentcollection=ac.IdAgentCollection  order by IdAgentCollectionDetail) cp2,  
-    (select top 1 ActualAmountToPay from agentcollectiondetail with(nolock) where DateofLastChange <=@EndDate and idagentcollection=ac.IdAgentCollection  order by IdAgentCollectionDetail desc) fcp      
-into   
-    #CP  
-from   
-    agentcollection ac                  
-  
-  
-  ------------------------------------------ Commission Profit
 
-  CREATE TABLE #ProfitTabla
-		(
-	[IdAgent] [int] NULL,
-	[AgentCode] [nvarchar](max) NULL,
-	[AgentName] [nvarchar](max) NULL,
-	[NumTrans] [int] NULL,
-	[NumCancel] [int] NULL,
-	[NumNet] [int] NULL,
-	[AmountTrans] [money] NULL,
-	[AmountCancel] [money] NULL,
-	[AmountNet] [money] NULL,
-	[CogsTrans] [money] NULL,
-	[CogsCancel] [money] NULL,
-	[CogsNet] [money] NULL,
-	[FxResult] [money] NULL,
-	[IncomeFee] [money] NULL,
-	[AgentcommissionMonthly] [money] NULL,
-	[AgentcommissionRetain] [money] NULL,
-	[FxFeeM] [money] NULL,
-	[FxFeeR] [money] NULL,
-	[SpecialCommission] [money] NOT NULL,
-	[PayerCommission] [money] NULL,
-	[UnclaimedAmount] [money] NULL,
-	[UnclaimedCOGS] [money] NULL,
-	[OtherCharges] [money] NULL,
-	[OtherChargesC] [money] NULL,
-	[OtherChargesD] [money] NULL,
-	[Result] [money] NULL,
-	[NetResult] [money] NULL,
-	[Margin] [money] NULL,
-	[Parent] [nvarchar](max) NOT NULL,
-	[SalesRep] [nvarchar](max) NULL,
-	[CountryCode] [nvarchar](max) NULL,
-	[CountryName] [nvarchar](max) NULL,
-	[CommSeller] [money] NULL,
-	[BkFeesSeller] [money] NULL
-)
+    DECLARE @tResult TABLE
+    (
+        IdAgent INT,
+        Agent VARCHAR(200),
+        AgentStatus VARCHAR(20),
+        IdAgentStatus INT,
+        AgentPhone VARCHAR(MAX),
+        AgentOrder INT,
+        ACHWellsFargo VARCHAR(20),
+        BankName VARCHAR(MAX),
+        DateOfLastDeposit DATETIME,
+        DateOfLastMovement DATETIME,
+        LastBalance MONEY,
+        NumberTransactions INT,
+        TransfersAmount MONEY,
+        CommissionTransfersAmount MONEY,
+        DepositAmount MONEY,
+        RejectedAmount MONEY,
+        CancelledAmount MONEY,
+        OtherChargeAmount MONEY,
+        CurrentBalance MONEY,
+        DebitOrCredit VARCHAR(50),
+        IdAgentPaymentSchema INT,
+        IdAgentCurrentStatus INT,
+        AgentCurrentStatusName NVARCHAR(MAX)
+    );
+
+    DELETE FROM #agentTemp
+    WHERE IdAgentStatus = @IAgentStatusDisable
+          AND IdAgent NOT IN
+              (
+                  SELECT DISTINCT
+                         IdAgent
+                  FROM dbo.AgentBalance
+                  WHERE DateOfMovement >= @BeginDate
+                        AND DateOfMovement < @EndDate
+              );
+
+    INSERT INTO @tResult
+    (
+        IdAgent,
+        Agent,
+        AgentStatus,
+        IdAgentStatus,
+        AgentPhone,
+        ACHWellsFargo,
+        BankName,
+        AgentOrder,
+        IdAgentPaymentSchema,
+        IdAgentCurrentStatus,
+        AgentCurrentStatusName
+    )
+    SELECT IdAgent,
+           Agent,
+           AgentStatus,
+           IdAgentStatus,
+           AgentPhone,
+           CASE (IdAgentCollectType)
+               WHEN 1 THEN
+                   'ACH'
+               WHEN 2 THEN
+                   'ACH with Scanner'
+               ELSE
+                   'Deposit'
+           END,
+           BankName,
+           AgentOrder,
+           IdAgentPaymentSchema,
+           IdAgentCurrentStatus,
+           AgentCurrentStatusName
+    FROM #agentTemp;
+
+
+    SELECT t0.IdAgent,
+           SUM(   CASE
+                      WHEN t3.IsDebit = 1 THEN
+                          1
+                      ELSE
+                          0
+                  END
+              ) AS OPNumTrans,
+           SUM(   CASE
+                      WHEN t3.IsDebit = 0 THEN
+                          1
+                      ELSE
+                          0
+                  END
+              ) AS OPNumCancels,
+           SUM(   CASE
+                      WHEN t3.IsDebit = 1 THEN
+                          t2.TotalAmount
+                      ELSE
+                          0
+                  END
+              ) AS OPAmount,
+           SUM(   CASE
+                      WHEN t3.IsDebit = 0 THEN
+                          t2.TotalAmount
+                      ELSE
+                          0
+                  END
+              ) AS OPAmountCancel,
+           SUM(   CASE
+                      WHEN t1.IsMonthly = 1 THEN
+                          t2.Fee
+                      ELSE
+                          t1.Commission
+                  END
+              ) AS OPCommission
+    INTO #tempOP
+    FROM #agentTemp t0
+        JOIN dbo.AgentBalance t1
+            ON t0.IdAgent = t1.IdAgent
+        JOIN dbo.AgentBalanceDetail t2
+            ON t1.IdAgentBalance = t2.IdAgentBalance
+        JOIN dbo.AgentBalanceHelper t3
+            ON (t1.TypeOfMovement = t3.TypeOfMovement)
+        INNER JOIN Operation.ProductTransfer AS op
+            ON t1.IdTransfer = op.IdProductTransfer
+               AND t3.IdOtherProduct = op.IdOtherProduct --#2
+    WHERE (
+              t1.DateOfMovement >= @BeginDate
+              AND t1.DateOfMovement < @EndDate
+          )
+          AND t3.IdOtherProduct != 15 -- Checks view like Deposits       
+    GROUP BY t0.IdAgent;
+
+
+    SELECT COUNT(1) AS TransferNum,
+           ISNULL(SUM(A.AmountInDollars), 0) AS TransferAmount,
+           A.IdAgent,
+           ISNULL(SUM(A.TotalAmountToCorporate - A.AmountInDollars), 0) AS Commission
+    INTO #temp1
+    FROM dbo.Transfer A
+        JOIN #agentTemp B
+            ON (A.IdAgent = B.IdAgent)
+    WHERE A.DateOfTransfer >= @BeginDate
+          AND A.DateOfTransfer < @EndDate
+    GROUP BY A.IdAgent;
+
+
+    SELECT COUNT(1) AS TransferNumRejected,
+           ISNULL(SUM(A.TotalAmountToCorporate), 0) AS TransferAmountRejected,
+           A.IdAgent,
+           ISNULL(SUM(A.AgentCommission), 0) AS CommissionRej
+    INTO #temp21
+    FROM dbo.Transfer A
+        JOIN #agentTemp B
+            ON (A.IdAgent = B.IdAgent)
+    WHERE A.DateStatusChange >= @BeginDate
+          AND A.DateStatusChange < @EndDate
+          AND A.IdStatus IN ( 31 )
+    GROUP BY A.IdAgent;
+
+
+    SELECT COUNT(1) AS TransferNumCancelled,
+           ISNULL(SUM(A.AmountInDollars), 0) AS TransferAmountCancelled,
+           A.IdAgent,
+           ISNULL(SUM(A.AgentCommission), 0) AS CommissionCan
+    INTO #temp22
+    FROM dbo.Transfer A
+        JOIN #agentTemp B
+            ON (A.IdAgent = B.IdAgent)
+    WHERE A.DateStatusChange >= @BeginDate
+          AND A.DateStatusChange < @EndDate
+          AND A.IdStatus IN ( 22 )
+    GROUP BY A.IdAgent;
 
 
 
---INSERT INTO #ProfitTabla 
---exec [Corp].[st_ReportProfitARDashboard] 0,@BeginDate,@BeginDate,0,34,NULL
-
------------------------------Commission OP Profit-------------------------
-CREATE TABLE #ProfitOPtabla
-(
-	[idAgent] [INT] NULL,
-	[AgentName] [NVARCHAR](250) NULL,
-	[AgentCode] [NVARCHAR](25) NULL,
-	[Total] [MONEY] NULL,
-	[CancelsTotal] [MONEY] NULL,
-	[TotalNet] [MONEY] NULL,
-	[Amount] [MONEY] NULL,
-	[CGS] [MONEY] NULL,
-	[Fee] [MONEY] NULL,
-	[FeeM] [MONEY] NULL,
-	[FeeR] [MONEY] NULL,
-	[ProviderComm] [MONEY] NULL,
-	[CorpCommission] [MONEY] NULL,
-	[AgentCommMonthly] [MONEY] NULL,
-	[AgentCommRetain] [MONEY] NULL,
-	[FX] [MONEY] NULL,
-	[CheckFees] [MONEY] NULL,
-	[ReturnedFee] [MONEY] NULL,
-	[TransactionFee] [MONEY] NULL,
-	[CustomerFee] [MONEY] NULL,
-	[ProccessingFee] [MONEY] NULL,
-	[ScannerFee] [MONEY] NULL
-) 
+    SELECT COUNT(1) AS TransferNumClosed,
+           ISNULL(SUM(A.AmountInDollars), 0) AS TransferAmountClosed,
+           A.IdAgent,
+           ISNULL(SUM(A.TotalAmountToCorporate - A.AmountInDollars), 0) AS CommissionClosed
+    INTO #temp2
+    FROM dbo.TransferClosed A
+        JOIN #agentTemp B
+            ON (A.IdAgent = B.IdAgent)
+    WHERE A.DateOfTransfer >= @BeginDate
+          AND A.DateOfTransfer < @EndDate
+    GROUP BY A.IdAgent;
 
 
-
-INSERT INTO #ProfitOPtabla
-EXEC [Corp].[st_GetOtherProductProfitV2]@BeginDate,@BeginDate,NULL,NULL,NULL
-
---------------------------------------------------------------------------
-
-
----Aget Activity
-
-SELECT 
-    A.IdAgent,
-	A.AgentCode,
-    CASE WHEN REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(CAST(B.BusinessTypes AS VARCHAR(MAX)),'<',''),'>',''),'AgentBusinessTypes',''),'IdAgentBusinessType',''),'/',',')='' 
-		 THEN NULL ELSE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(CAST(B.BusinessTypes AS VARCHAR(MAX)),'<',''),'>',''),'AgentBusinessTypes',''),'IdAgentBusinessType',''),'/',',') END AS IdBusinessType
-INTO #Activity
-FROM  dbo.Agent AS A 
-INNER JOIN dbo.RelationAgentBusinessType AS B WITH (NOLOCK) ON A.AgentCode = B.AgentCode
-LEFT JOIN dbo.AgentBusinessType AS c WITH (NOLOCK) ON REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(CAST(B.BusinessTypes AS VARCHAR(MAX)),'<',''),'>',''),'AgentBusinessTypes',''),'IdAgentBusinessType',''),'/','') = c.IdAgentBusinessType
----where  a.AgentCode ='13110-OR'
+    SELECT COUNT(1) AS TransferNumClosedRejected,
+           ISNULL(SUM(A.TotalAmountToCorporate), 0) AS TransferAmountClosedRejected,
+           A.IdAgent,
+           ISNULL(SUM(A.AgentCommission), 0) AS CommissionClosedRej
+    INTO #temp23
+    FROM dbo.TransferClosed A
+        JOIN #agentTemp B
+            ON (A.IdAgent = B.IdAgent)
+    WHERE A.DateStatusChange >= @BeginDate
+          AND A.DateStatusChange < @EndDate
+          AND A.IdStatus IN ( 31 )
+    GROUP BY A.IdAgent;
 
 
-DECLARE @IdAgent INT;
-
-CREATE TABLE #AgentActivity
-(
-	IdAgent INT,
-	AgentCode NVARCHAR (50),
-	IdBusinessType INT
-)
-
-WHILE EXISTS (SELECT 1 FROM #Activity)
-BEGIN
-
-SET @IdAgent = (SELECT TOP 1 IdAgent FROM #Activity ORDER BY IdAgent ASC);
-
-
-DECLARE @Cadena  VARCHAR(50),
-		@Palabra_aBuscar VARCHAR(2),
-		@Longitud_Palabra INT
-
-select  @Cadena = IdBusinessType,
-		@Palabra_aBuscar = ',',
-		@Longitud_Palabra  = LEN(@Palabra_aBuscar)
-from #Activity
-Where IdAgent=@IdAgent
+    SELECT COUNT(1) AS TransferNumClosedCancelled,
+           ISNULL(SUM(A.AmountInDollars), 0) AS TransferAmountClosedCancelled,
+           A.IdAgent,
+           ISNULL(SUM(A.AgentCommission), 0) AS CommissionClosedCan
+    INTO #temp24
+    FROM dbo.TransferClosed A
+        JOIN #agentTemp B
+            ON (A.IdAgent = B.IdAgent)
+    WHERE A.DateStatusChange >= @BeginDate
+          AND A.DateStatusChange < @EndDate
+          AND A.IdStatus IN ( 22 )
+    GROUP BY A.IdAgent;
 
 
-insert into #AgentActivity
-select 
-	IdAgent,
-	AgentCode,
-	SUBSTRING(@Cadena,@Longitud_Palabra,CHARINDEX(@Palabra_aBuscar,@Cadena)-1) as IdBusinessType
-
-from #Activity
-where IdAgent  = @IdAgent
-
-
-DELETE FROM #Activity WHERE IdAgent = @IdAgent;
-
-END
-
-
-  ------------------------------------------
-
- --INSERT INTO [MaxiDW].[finc].[ARAgentByDay]
-
- SELECT                  
-   
-    CAST(@BeginDate AS DATE) AS Day,
-	t.idAgent,  
-   	#PaymentDays,
-	ISNULL(credit.CreditAmount,0) AS CreditAmount,
-	0 AS CreditScore,
-	Business.IdBusinessType,
-    t.IdAgentCurrentStatus,
-    DateOfStatusChange,            
-    ISNULL(NumberTransactions,0) AS NumberTransactions,                        
-    ISNULL(TransfersAmount+RejectedAmount+CancelledAmount,0) AS Amount, 
-  -- CommissionTransfersAmount - SpecialCommission as Commission,
-	ISNULL(comm.Commission,0) AS Commission,
-	ISNULL(comm.SpecialCommission,0) AS Bonus,                            
-	ISNULL(OPNumTrans,0) AS OPNum,        
-	ISNULL(OPAmount,0) AS OPAmount,        
-	ISNULL(OPCommission + OPAmountCancel,0) AS OPFee ,  
-	ISNULL(CommOP.Commission,0) AS OPCommission, 
-	ISNULL(CurrentBalance,0) AS CurrentBalance,
-    ISNULL( CASE WHEN c.cp1 IS NULL THEN c.cp2 ELSE c.cp1 END,0) InitialCP,     
-    ISNULL( CASE WHEN c.cp1 IS NULL THEN c.cp2 ELSE c.cp1 END,0) -CASE WHEN idcp1=idfcp THEN c.cp1 WHEN idcp2=idfcp THEN c.cp2 ELSE ISNULL(fcp,0) END CPMovements,  
-    CASE WHEN idcp1=idfcp THEN c.cp1 WHEN idcp2=idfcp THEN c.cp2 ELSE ISNULL(fcp,0) END FinalCP,
-  --CurrentBalance+FinalCP as ConsolidatedDebt,
-    ISNULL( CommissionTransfersAmount,0) AS Fee,
-  --comm.IncomeFee,
-    ISNULL(sc.Spected,0) AS Spected,
-  --isnull(sc."Current",0) "Current",
-    ISNULL(bal.Balance,0) AS [Current],
-	[Current]-Spected AS [CurrentVsSpected],
-		CreditAmount AS LastCreditLimit,
-		CurrentBalance AS LastCurrentBalance,
-		[Current] AS LastCurrent,
-		Spected AS LastSpected,
-		CASE WHEN  DATEPART(dw,  CAST(@BeginDate AS DATE)) IN (7,1) OR  CAST(@BeginDate AS DATE) IN(SELECT Holiday FROM MaxiDW.finc.LaboralDays) THEN 0 ELSE [Current] END AS LastLaboralDaysCurrent,
-		CASE WHEN  DATEPART(dw,  CAST(@BeginDate AS DATE)) IN (7,1) OR  CAST(@BeginDate AS DATE) IN(SELECT Holiday FROM MaxiDW.finc.LaboralDays) THEN 0 ELSE Spected END AS LastLaboralDaysSpected,
-		[Current]-Spected AS LastCurrentVsSpected,
-		CASE WHEN  DATEPART(dw,  CAST(@BeginDate AS DATE)) IN (7,1) OR  CAST(@BeginDate AS DATE) IN(SELECT Holiday FROM MaxiDW.finc.LaboralDays) THEN 0 ELSE 
-			CASE WHEN [Current]-Spected < 0 THEN
-				1
-			ELSE 0 END 
-		END AS DelinquencyDays,
-		1 AS TotalDias,
-		CASE WHEN  DATEPART(dw,  CAST(@BeginDate AS DATE)) IN (7,1) OR  CAST(@BeginDate AS DATE) IN(SELECT Holiday FROM MaxiDW.finc.LaboralDays) THEN 0 ELSE 1 END AS TotalDiasLaborales,
-		CASE WHEN  DATEPART(dw,  CAST(@BeginDate AS DATE)) IN (7,1) OR  CAST(@BeginDate AS DATE) IN(SELECT Holiday FROM MaxiDW.finc.LaboralDays) THEN NULL ELSE 
-			CASE WHEN Spected>0 THEN (CONVERT(DECIMAL(18,8),[Current])) / CONVERT(DECIMAL(18,8),Spected) ELSE NULL END 
-		END AS AVGCurrentDivSpected,
-		CASE WHEN  DATEPART(dw,  CAST(@BeginDate AS DATE)) IN (7,1) OR  CAST(@BeginDate AS DATE) IN(SELECT Holiday FROM MaxiDW.finc.LaboralDays) THEN NULL ELSE 
-			CASE WHEN Spected>0 THEN (CONVERT(DECIMAL(18,8),[Current])) / CONVERT(DECIMAL(18,8),Spected) ELSE NULL END 
-		END AS SUMCurrentDivSpected,
-		CASE WHEN  DATEPART(dw,  CAST(@BeginDate AS DATE)) IN (7,1) OR  CAST(@BeginDate AS DATE) IN(SELECT Holiday FROM MaxiDW.finc.LaboralDays) THEN NULL ELSE 
-			CASE WHEN Spected>0 THEN 1 ELSE NULL END 
-		END AS COUNTCurrentDivSpected,
-		CASE WHEN  DATEPART(dw,  CAST(@BeginDate AS DATE)) IN (7,1) OR  CAST(@BeginDate AS DATE) IN(SELECT Holiday FROM MaxiDW.finc.LaboralDays) THEN NULL ELSE 
-			CASE WHEN Spected>0 THEN (CONVERT(DECIMAL(18,8),[Current])) / CONVERT(DECIMAL(18,8),Spected)*100 ELSE NULL END
-		END AS AvgDebtPayment,
-		CASE WHEN  DATEPART(dw,  CAST(@BeginDate AS DATE)) IN (7,1) OR  CAST(@BeginDate AS DATE) IN(SELECT Holiday FROM MaxiDW.finc.LaboralDays) THEN NULL ELSE 
-			CASE WHEN Spected>0 THEN (CONVERT(DECIMAL(18,8),[Current])) / CONVERT(DECIMAL(18,8),Spected)*100 ELSE NULL END
-		END AS SUMAvgDebtPayment,
-		CASE WHEN  DATEPART(dw,  CAST(@BeginDate AS DATE)) IN (7,1) OR  CAST(@BeginDate AS DATE) IN(SELECT Holiday FROM MaxiDW.finc.LaboralDays) THEN NULL ELSE 
-			CASE WHEN Spected>0 THEN (CONVERT(DECIMAL(18,8),[Current])) / CONVERT(DECIMAL(18,8),Spected)*100 ELSE NULL END
-		END AS COUNTAvgDebtPayment,
-		(ISNULL(TransfersAmount+RejectedAmount+CancelledAmount,0)+ISNULL( CommissionTransfersAmount,0)) AS AvgDailyOperations,
-		ISNULL(NumberTransactions,0) AS AvgDailyTransactions,
-		CASE WHEN ISNULL(NumberTransactions,0) > 0 THEN 1 ELSE NULL END AS DaysWithTrans,
-		CASE WHEN (ISNULL(NumberTransactions,0)) >0 THEN CASE WHEN ((ISNULL(TransfersAmount+RejectedAmount+CancelledAmount,0)+ISNULL( CommissionTransfersAmount,0))/(ISNULL(NumberTransactions,0)))>0 THEN CreditAmount/((ISNULL(TransfersAmount+RejectedAmount+CancelledAmount,0)+ISNULL( CommissionTransfersAmount,0))/(ISNULL(NumberTransactions,0))) ELSE 0 END 
-		ELSE 0 END AS  [CurrentCreditLimit/AvgMT],
-		CONVERT(VARCHAR(25),DATEADD(dd,-(DAY(GETDATE())-1),GETDATE()),23) AS MinDate, 
-		CAST(@BeginDate AS DATE) AS MaxDate
- 
-  FROM     
-		#tempFinal t  
-		LEFT JOIN #CP c ON t.idagent=c.idagent  
-		LEFT JOIN ( 
- 
-  				 SELECT IdAgent,SUM(AmountInDollars) AS A,SUM(Transac) AS t,SUM(Fee) AS Fee FROM  (
-					SELECT  
-						t.IdAgent,  
-						CONVERT(DATE,t.dateoftransfer) TransactionDate,
-						SUM(AmountInDollars) AmountInDollars,
-						COUNT(1) Transac,
-						SUM(t.Fee) AS Fee
-					FROM[Transfer] T WITH(NOLOCK)
-						WHERE 
-						CAST(DateOfTransfer AS DATE )>=@BeginDate AND
-						CAST (DateOfTransfer AS DATE) <@EndDate AND t.IdAgent NOT IN (4336,1242)
-					GROUP BY 
-						t.IdAgent,
-						CONVERT(DATE,t.dateoftransfer) 
-					UNION ALL 
-					SELECT  
-						t.IdAgent,  
-						CONVERT(DATE,t.dateoftransfer) TransactionDate,
-						SUM(AmountInDollars),
-						COUNT(1) Transac,
-						SUM(t.Fee) AS Fee
-					FROM TransferClosed t WITH(NOLOCK)    
-						WHERE 
-						CAST(DateOfTransfer AS DATE )>=@BeginDate AND
-						CAST (DateOfTransfer AS DATE) <@EndDate AND t.IdAgent NOT IN (4336,1242)
-					GROUP BY 
-						t.IdAgent,  
-						CONVERT(DATE,t.dateoftransfer)
-					UNION ALL 
-					SELECT 
-						t.IdAgent,  
-						CONVERT(DATE,t.DateStatusChange) TransactionDate,
-						SUM(-AmountInDollars), 
-						-COUNT(1) Transac,
-						SUM(-t.Fee) AS Fee
-					FROM Transfer t WITH (NOLOCK)  
-						WHERE 
-						CAST(DateStatusChange AS DATE)>=@BeginDate
-						AND CAST( DateStatusChange AS DATE)<@EndDate 
-						AND IdStatus IN (31,22) AND t.IdAgent NOT IN (4336,1242)
-					GROUP BY 
-						t.IdAgent, 
-						CONVERT(DATE,t.DateStatusChange) 
-					UNION ALL 
-					  SELECT
-						t.IdAgent,  
-						CONVERT(DATE,t.DateStatusChange) TransactionDate,
-						SUM(-AmountInDollars),
-						-COUNT(1) Transac,
-						SUM(-t.Fee) AS Fee
-					FROM TransferClosed  t WITH(NOLOCK)   
-					WHERE  
-						CAST(DateStatusChange AS DATE)>=@BeginDate AND
-						CAST (DateStatusChange AS DATE)<@EndDate AND
-						IdStatus IN (31,22) AND t.IdAgent NOT IN (4336,1242)
-					GROUP BY 
-						t.IdAgent,  
-						CONVERT(DATE,t.DateStatusChange)
-				) as fee
-				--where  IdAgent=1244
-				group by IdAgent
-
-						) as t1 on t.IdAgent=t1.IdAgent
-
-		left join ( select  a.IdAgent,
-							c.Name as AgentClass,
-							ct.Name as CollectType,
-							a.AgentBusinessType
-					from Agent a 
-					join AgentCollectType ct on a.IdAgentCollectType=ct.IdAgentCollectType
-					join AgentClass  c on a.IdAgentClass=c.IdAgentClass
-
-				  )a on t.IdAgent=a.IdAgent
-
-		left join (
-
-					SELECT 
-						a.idagent,
-	  					sum(AmountByCalendar + AmountByLastDay) as Spected,
-						sum(CollectAmount) as "Current" 
-       					from dbo.Agent a WITH (NOLOCK)
-						left JOIN MaxiCollection m WITH (NOLOCK) ON a.idagent=m.idagent
-					WHERE m.dateofcollection=dbo.RemoveTimeFromDatetime(@BeginDate)
-					group by a.idagent) as sc on t.IdAgent=sc.IdAgent
-
-		left join (	
-				   select a.IdAgent,
-						case when credit.CreditAmount is null then a.CreditAmount else credit.CreditAmount end as CreditAmount
-					from Agent a
-					left join (select IdAgent,CreditAmount 
-					from [AgentCreditLimitHistory] 
-					where IdAgentCreditLimitHistory in (select max(IdAgentCreditLimitHistory)
-					from [AgentCreditLimitHistory] 
-					group by IdAgent) ) as credit on a.IdAgent=credit.IdAgent
-					
-					) as credit on t.IdAgent=credit.IdAgent
-
-		left join (
-
-					select  IdAgent,count(distinct(#days)) as #PaymentDays from Agent
-					 unpivot(#days for diasemana in (DoneOnSundayPayOn,DoneOnMondayPayOn,DoneOnTuesdayPayOn,DoneOnWednesdayPayOn,DoneOnThursdayPayOn,DoneOnFridayPayOn,DoneOnSaturdayPayOn)) as a
-					 --where IdAgent=1241
-					 group by IdAgent
-
-					) as dp on t.IdAgent=dp.IdAgent
-
-		left join (
-
-					select IdAgent,AgentcommissionMonthly+FxFeeM+AgentcommissionRetain+FxFeeR as  Commission,
-						   SpecialCommission,
-						   IncomeFee  
-						   from #ProfitTabla
-
-					) as Comm on t.IdAgent=comm.IdAgent
-
-		left join (
-					select IdAgent,
-					AgentcommMonthly+AgentcommRetain as  Commission  
-					from #ProfitOPtabla
-
-					) as CommOP on t.IdAgent=CommOP.IdAgent
-
-		left join (
-
-					SELECT sum(AmountNew) as Balance, 
-					DateOfMovement,IdAgent 
-					from (
-							select case when DebitOrCredit='Credit' then Amount else Amount*-1 end as AmountNew,
-							cast(DateOfMovement as date) as DateOfMovement,
-							IdAgent
-							from AgentBalance with(nolock)
-							where  TypeOfMovement  in ('DEP','CGO','CH','CHNFS','CHRTN','CHVF') 
-							and cast(DateOfMovement as date) >=@BeginDate and cast(DateOfMovement as date) <= @BeginDate 
-						) as t1 group by DateOfMovement,IdAgent
-
-					) as Bal on t.IdAgent=bal.IdAgent
-
-		left join (
-					select 
-							IdAgent,
-							IdBusinessType
-					from #AgentActivity
-
-					) as Business ON t.IdAgent=Business.IdAgent
-
-	WHERE T.IdAgent NOT IN  (1242,4336,10106,2676,2878,8640)
-	AND T.IdAgentCurrentStatus NOT IN (2,5,6)
-	ORDER BY Agent,1  
+    SELECT ISNULL(SUM(   CASE
+                             WHEN A.DebitOrCredit = 'Debit' THEN
+                                 A.Amount
+                             ELSE
+                                 A.Amount * -1
+                         END
+                     ),
+                  0
+                 ) AS TransferAmountCancelledBalance,
+           A.IdAgent
+    INTO #temp25
+    FROM dbo.AgentBalance A
+        JOIN #agentTemp B
+            ON (A.IdAgent = B.IdAgent)
+    WHERE A.DateOfMovement >= @BeginDate
+          AND A.DateOfMovement < @EndDate
+          AND A.TypeOfMovement = 'CANC'
+    GROUP BY A.IdAgent;
 
 
+
+    SELECT ISNULL(SUM(A.Amount), 0) AS Deposit,
+           A.IdAgent
+    INTO #temp9
+    FROM dbo.AgentDeposit A
+        JOIN #agentTemp B
+            ON (A.IdAgent = B.IdAgent)
+    WHERE A.DateOfLastChange >= @BeginDate
+          AND A.DateOfLastChange < @EndDate
+    GROUP BY A.IdAgent;
+
+
+    SELECT ISNULL(SUM(   CASE
+                             WHEN A.DebitOrCredit = 'Credit' THEN
+                                 A.Amount
+                             ELSE
+                                 A.Amount * -1
+                         END
+                     ),
+                  0
+                 ) AS OtherCharge,
+           A.IdAgent
+    INTO #temp10
+    FROM dbo.AgentBalance A
+        JOIN #agentTemp B
+            ON (A.IdAgent = B.IdAgent)
+    WHERE A.DateOfMovement >= @BeginDate
+          AND A.DateOfMovement < @EndDate
+          AND
+          (
+              A.TypeOfMovement = 'CGO'
+              OR A.TypeOfMovement = 'CHNFS'
+          )
+    GROUP BY A.IdAgent;
+
+
+    SELECT MAX(DateOfMovement) AS DateOfMovement,
+           IdAgent
+    INTO #temp15
+    FROM dbo.AgentBalance
+    WHERE DateOfMovement < @EndDate
+    GROUP BY IdAgent;
+
+    SELECT A.Balance,
+           A.IdAgent,
+           A.IdAgentBalance --                 
+    INTO #temp11
+    FROM dbo.AgentBalance A
+        JOIN #temp15 B
+            ON (
+                   A.DateOfMovement = B.DateOfMovement
+                   AND A.IdAgent = B.IdAgent
+               );
+                                                                   --where not (A.TypeOfMovement='CGO' and ( A.Description like '% Retransfer Credit - Folio:%' or  A.Description like '% Oklahoma State Fee - Folio:%' ) ) --#3    
+
+                                                                   /************************************************************/ --#3
+    SELECT t.IdAgentBalance
+    INTO #TmpDelete
+    FROM
+    (
+        SELECT IdAgentBalance,
+               Flag = ROW_NUMBER() OVER (PARTITION BY IdAgent ORDER BY IdAgentBalance DESC)
+        FROM #temp11
+    ) AS t
+    WHERE 1 = 1
+          AND t.Flag > 1;
+
+    DELETE FROM #temp11
+    WHERE 1 = 1
+          AND IdAgentBalance IN
+              (
+                  SELECT IdAgentBalance FROM #TmpDelete
+              );
+                                                                   /************************************************************/ --#3      
+
+    SELECT MAX(IdAgentDeposit) AS IdAgentDeposit,
+           IdAgent
+    INTO #temp12
+    FROM dbo.AgentDeposit
+    GROUP BY IdAgent;
+
+    SELECT A.DateOfLastChange AS LastDeposit,
+           A.IdAgent
+    INTO #temp13
+    FROM dbo.AgentDeposit A
+        JOIN #temp12 B
+            ON (A.IdAgentDeposit = B.IdAgentDeposit);
+
+
+    SELECT MAX(DateOfMovement) AS DateOfMovement,
+           IdAgent
+    INTO #temp14
+    FROM dbo.AgentBalance
+    WHERE TypeOfMovement = 'TRAN'
+    GROUP BY IdAgent;
+
+    SELECT SC.IdAgent,
+           SUM(SC.Commission) SpecialCommission
+    INTO #tempSC
+    FROM dbo.SpecialCommissionBalance SC
+    WHERE SC.DateOfApplication >= @BeginDate
+          AND SC.DateOfApplication < @EndDate
+    GROUP BY SC.IdAgent;
+
+    SELECT IdAgent,
+           COUNT(1) totchecks,
+           SUM(Amount) amountChecks
+    INTO #checks
+    FROM dbo.Checks
+    WHERE IdStatus IN ( 20, 21, 30 )
+          AND DateOfMovement >= @BeginDate
+          AND DateOfMovement < @EndDate --#1
+    GROUP BY IdAgent;
+
+    SELECT A.IdAgent,
+           A.Agent,
+           A.AgentStatus,
+           A.IdAgentStatus,
+           A.AgentPhone,
+           A.AgentOrder,
+           A.ACHWellsFargo,
+           A.BankName,
+           A.DateOfLastDeposit,
+           A.DateOfLastMovement,
+           A.LastBalance,
+           A.NumberTransactions,
+           A.TransfersAmount,
+           A.CommissionTransfersAmount,
+           A.DepositAmount,
+           A.RejectedAmount,
+           A.CancelledAmount,
+           A.OtherChargeAmount,
+           A.CurrentBalance,
+           A.DebitOrCredit,
+           A.IdAgentPaymentSchema,
+           A.IdAgentCurrentStatus,
+           A.AgentCurrentStatusName,
+           B.TransferNum,
+           B.TransferAmount,
+           C.TransferNumClosed,
+           C.TransferAmountClosed,
+           B.Commission,
+           O.CommissionRej,
+           P.CommissionCan,
+           C.CommissionClosed,
+           Q.CommissionClosedRej,
+           R.CommissionClosedCan,
+           O.TransferNumRejected,
+           O.TransferAmountRejected,
+           P.TransferNumCancelled,
+           P.TransferAmountCancelled,
+           Q.TransferNumClosedRejected,
+           Q.TransferAmountClosedRejected,
+           R.TransferNumClosedCancelled,
+           R.TransferAmountClosedCancelled,
+           J.Deposit,
+           K.OtherCharge,
+           L.Balance,
+           M.LastDeposit,
+           N.DateOfMovement,
+           S.OPNumTrans,
+           S.OPNumCancels,
+           S.OPAmount,
+           S.OPCommission,
+           S.OPAmountCancel,
+           W.TransferAmountCancelledBalance,
+           ISNULL(SC.SpecialCommission, 0) SpecialCommission,
+           ISNULL(ch.totchecks, 0) totchecks,
+           ISNULL(ch.amountChecks, 0) amountChecks,
+           --GETDATE() as DateOfStatusChange
+           CASE
+               WHEN
+               (
+                   SELECT COUNT(DateOfchange)
+                   FROM dbo.AgentStatusHistory
+                   WHERE IdAgent = A.IdAgent
+               ) = 0 THEN
+               (
+                   SELECT OpenDate FROM dbo.Agent WHERE IdAgent = A.IdAgent
+               )
+               ELSE
+           (
+               SELECT TOP 1
+                      DateOfchange
+               FROM dbo.AgentStatusHistory
+               WHERE IdAgent = A.IdAgent
+               ORDER BY DateOfchange DESC
+           )
+           END AS DateOfStatusChange
+    INTO #tempFinal
+    FROM @tResult A
+        LEFT JOIN #temp1 B
+            ON (A.IdAgent = B.IdAgent)
+        LEFT JOIN #temp2 C
+            ON (A.IdAgent = C.IdAgent)
+        LEFT JOIN #temp9 J
+            ON (A.IdAgent = J.IdAgent)
+        LEFT JOIN #temp10 K
+            ON (A.IdAgent = K.IdAgent)
+        LEFT JOIN #temp11 L
+            ON (A.IdAgent = L.IdAgent)
+        LEFT JOIN #temp13 M
+            ON (A.IdAgent = M.IdAgent)
+        LEFT JOIN #temp14 N
+            ON (A.IdAgent = N.IdAgent)
+        LEFT JOIN #temp21 O
+            ON (A.IdAgent = O.IdAgent)
+        LEFT JOIN #temp22 P
+            ON (A.IdAgent = P.IdAgent)
+        LEFT JOIN #temp23 Q
+            ON (A.IdAgent = Q.IdAgent)
+        LEFT JOIN #temp24 R
+            ON (A.IdAgent = R.IdAgent)
+        LEFT JOIN #tempOP S
+            ON (A.IdAgent = S.IdAgent)
+        LEFT JOIN #temp25 W
+            ON (A.IdAgent = W.IdAgent)
+        LEFT JOIN #tempSC SC
+            ON (A.IdAgent = SC.IdAgent)
+        LEFT JOIN #checks ch
+            ON (A.IdAgent = ch.IdAgent);
+    --Left Join #tempCBP T on (A.IdAgent=T.IdAgent)      
+    --Left Join #tempCP V on (A.IdAgent=V.IdAgent)                
+
+    UPDATE #tempFinal
+    SET NumberTransactions = ISNULL(TransferNum, 0) + ISNULL(TransferNumClosed, 0) - ISNULL(TransferNumRejected, 0)
+                             - ISNULL(TransferNumCancelled, 0) - ISNULL(TransferNumClosedRejected, 0)
+                             - ISNULL(TransferNumClosedCancelled, 0);
+    UPDATE #tempFinal
+    SET TransfersAmount = ISNULL(TransferAmount, 0) + ISNULL(TransferAmountClosed, 0);
+    UPDATE #tempFinal
+    SET CommissionTransfersAmount = ISNULL(Commission, 0) + ISNULL(CommissionClosed, 0);
+    UPDATE #tempFinal
+    SET RejectedAmount = (ISNULL(TransferAmountRejected, 0) + ISNULL(TransferAmountClosedRejected, 0)) * -1;
+    UPDATE #tempFinal
+    SET CancelledAmount = (ISNULL(TransferAmountCancelledBalance, 0));
+    UPDATE #tempFinal
+    SET DepositAmount = ISNULL(Deposit * -1, 0);
+    UPDATE #tempFinal
+    SET OtherChargeAmount = ISNULL(OtherCharge * -1, 0);
+    UPDATE #tempFinal
+    SET CurrentBalance = ISNULL(Balance, 0);
+    UPDATE #tempFinal
+    SET DateOfLastDeposit = ISNULL(LastDeposit, '');
+    UPDATE #tempFinal
+    SET DateOfLastMovement = ISNULL(DateOfMovement, ''),
+        OPAmountCancel = ISNULL(OPAmountCancel, 0),
+        OPAmount = ISNULL(OPAmount, 0);
+    UPDATE #tempFinal
+    SET OPNumTrans = ISNULL(OPNumTrans, 0) - ISNULL(OPNumCancels, 0),
+        OPCommission = ISNULL(OPCommission, 0);
+    UPDATE #tempFinal
+    SET LastBalance = CurrentBalance - TransfersAmount - OtherChargeAmount - DepositAmount - CommissionTransfersAmount
+                      - CancelledAmount - RejectedAmount - OPAmount - OPAmountCancel
+                      + (CASE
+                             WHEN IdAgentPaymentSchema = 1 THEN
+                                 0
+                             ELSE
+                                 OPCommission
+                         END
+                        );
+
+    SELECT ac.IdAgent,
+           (
+               SELECT TOP 1
+                      IdAgentCollectionDetail
+               FROM dbo.AgentCollectionDetail
+               WHERE DateofLastChange <= @BeginDate
+                     AND IdAgentCollection = ac.IdAgentCollection
+               ORDER BY IdAgentCollectionDetail DESC
+           ) idcp1,
+           (
+               SELECT TOP 1
+                      IdAgentCollectionDetail
+               FROM dbo.AgentCollectionDetail
+               WHERE DateofLastChange <= @EndDate
+                     AND IdAgentCollection = ac.IdAgentCollection
+               ORDER BY IdAgentCollectionDetail
+           ) idcp2,
+           (
+               SELECT TOP 1
+                      IdAgentCollectionDetail
+               FROM dbo.AgentCollectionDetail
+               WHERE DateofLastChange <= @EndDate
+                     AND IdAgentCollection = ac.IdAgentCollection
+               ORDER BY IdAgentCollectionDetail DESC
+           ) idfcp,
+           (
+               SELECT TOP 1
+                      ActualAmountToPay
+               FROM dbo.AgentCollectionDetail
+               WHERE DateofLastChange <= @BeginDate
+                     AND IdAgentCollection = ac.IdAgentCollection
+               ORDER BY IdAgentCollectionDetail DESC
+           ) cp1,
+           (
+               SELECT TOP 1
+                      ActualAmountToPay
+               FROM dbo.AgentCollectionDetail
+               WHERE DateofLastChange <= @EndDate
+                     AND IdAgentCollection = ac.IdAgentCollection
+               ORDER BY IdAgentCollectionDetail
+           ) cp2,
+           (
+               SELECT TOP 1
+                      ActualAmountToPay
+               FROM dbo.AgentCollectionDetail
+               WHERE DateofLastChange <= @EndDate
+                     AND IdAgentCollection = ac.IdAgentCollection
+               ORDER BY IdAgentCollectionDetail DESC
+           ) fcp
+    INTO #CP
+    FROM dbo.AgentCollection ac;
+
+
+    ------------------------------------------ Commission Profit
+
+    CREATE TABLE #ProfitTabla
+    (
+        IdAgent INT NULL,
+        AgentCode NVARCHAR(MAX) NULL,
+        AgentName NVARCHAR(MAX) NULL,
+        NumTrans INT NULL,
+        NumCancel INT NULL,
+        NumNet INT NULL,
+        AmountTrans MONEY NULL,
+        AmountCancel MONEY NULL,
+        AmountNet MONEY NULL,
+        CogsTrans MONEY NULL,
+        CogsCancel MONEY NULL,
+        CogsNet MONEY NULL,
+        FxResult MONEY NULL,
+        IncomeFee MONEY NULL,
+        AgentcommissionMonthly MONEY NULL,
+        AgentcommissionRetain MONEY NULL,
+        FxFeeM MONEY NULL,
+        FxFeeR MONEY NULL,
+        SpecialCommission MONEY NOT NULL,
+        PayerCommission MONEY NULL,
+        UnclaimedAmount MONEY NULL,
+        UnclaimedCOGS MONEY NULL,
+        OtherCharges MONEY NULL,
+        OtherChargesC MONEY NULL,
+        OtherChargesD MONEY NULL,
+        Result MONEY NULL,
+        NetResult MONEY NULL,
+        Margin MONEY NULL,
+        Parent NVARCHAR(MAX) NOT NULL,
+        SalesRep NVARCHAR(MAX) NULL,
+        CountryCode NVARCHAR(MAX) NULL,
+        CountryName NVARCHAR(MAX) NULL,
+        CommSeller MONEY NULL,
+        BkFeesSeller MONEY NULL
+    );
+
+
+
+    --INSERT INTO #ProfitTabla 
+    --exec [Corp].[st_ReportProfitARDashboard] 0,@BeginDate,@BeginDate,0,34,NULL
+
+    -----------------------------Commission OP Profit-------------------------
+    CREATE TABLE #ProfitOPtabla
+    (
+        idAgent INT NULL,
+        AgentName NVARCHAR(250) NULL,
+        AgentCode NVARCHAR(25) NULL,
+        Total MONEY NULL,
+        CancelsTotal MONEY NULL,
+        TotalNet MONEY NULL,
+        Amount MONEY NULL,
+        CGS MONEY NULL,
+        Fee MONEY NULL,
+        FeeM MONEY NULL,
+        FeeR MONEY NULL,
+        ProviderComm MONEY NULL,
+        CorpCommission MONEY NULL,
+        AgentCommMonthly MONEY NULL,
+        AgentCommRetain MONEY NULL,
+        FX MONEY NULL,
+        CheckFees MONEY NULL,
+        ReturnedFee MONEY NULL,
+        TransactionFee MONEY NULL,
+        CustomerFee MONEY NULL,
+        ProccessingFee MONEY NULL,
+        ScannerFee MONEY NULL
+    );
+
+
+
+    INSERT INTO #ProfitOPtabla
+    EXEC Corp.st_GetOtherProductProfitV2 @BeginDate,
+                                         @BeginDate,
+                                         NULL,
+                                         NULL,
+                                         NULL;
+
+    --------------------------------------------------------------------------
+
+
+    ---Aget Activity
+
+    SELECT A.IdAgent,
+           A.AgentCode,
+           CASE
+               WHEN REPLACE(
+                               REPLACE(
+                                          REPLACE(
+                                                     REPLACE(
+                                                                REPLACE(CAST(B.BusinessTypes AS VARCHAR(MAX)), '<', ''),
+                                                                '>',
+                                                                ''
+                                                            ),
+                                                     'AgentBusinessTypes',
+                                                     ''
+                                                 ),
+                                          'IdAgentBusinessType',
+                                          ''
+                                      ),
+                               '/',
+                               ','
+                           ) = '' THEN
+                   NULL
+               ELSE
+                   REPLACE(
+                              REPLACE(
+                                         REPLACE(
+                                                    REPLACE(
+                                                               REPLACE(CAST(B.BusinessTypes AS VARCHAR(MAX)), '<', ''),
+                                                               '>',
+                                                               ''
+                                                           ),
+                                                    'AgentBusinessTypes',
+                                                    ''
+                                                ),
+                                         'IdAgentBusinessType',
+                                         ''
+                                     ),
+                              '/',
+                              ','
+                          )
+           END AS IdBusinessType
+    INTO #Activity
+    FROM dbo.Agent AS A
+        INNER JOIN dbo.RelationAgentBusinessType AS B
+            ON A.AgentCode = B.AgentCode
+        LEFT JOIN dbo.AgentBusinessType AS c
+            ON REPLACE(
+                          REPLACE(
+                                     REPLACE(
+                                                REPLACE(
+                                                           REPLACE(CAST(B.BusinessTypes AS VARCHAR(MAX)), '<', ''),
+                                                           '>',
+                                                           ''
+                                                       ),
+                                                'AgentBusinessTypes',
+                                                ''
+                                            ),
+                                     'IdAgentBusinessType',
+                                     ''
+                                 ),
+                          '/',
+                          ''
+                      ) = c.IdAgentBusinessType;
+    ---where  a.AgentCode ='13110-OR'
+
+
+    DECLARE @IdAgent INT;
+
+    CREATE TABLE #AgentActivity
+    (
+        IdAgent INT,
+        AgentCode NVARCHAR(50),
+        IdBusinessType INT
+    );
+
+    WHILE EXISTS (SELECT 1 FROM #Activity)
+    BEGIN
+
+        SET @IdAgent =
+        (
+            SELECT TOP 1 IdAgent FROM #Activity ORDER BY IdAgent ASC
+        );
+
+
+        DECLARE @Cadena VARCHAR(50),
+                @Palabra_aBuscar VARCHAR(2),
+                @Longitud_Palabra INT;
+
+        SELECT @Cadena = IdBusinessType,
+               @Palabra_aBuscar = ',',
+               @Longitud_Palabra = LEN(@Palabra_aBuscar)
+        FROM #Activity
+        WHERE IdAgent = @IdAgent;
+
+
+        INSERT INTO #AgentActivity
+        SELECT IdAgent,
+               AgentCode,
+               SUBSTRING(@Cadena, @Longitud_Palabra, CHARINDEX(@Palabra_aBuscar, @Cadena) - 1) AS IdBusinessType
+        FROM #Activity
+        WHERE IdAgent = @IdAgent;
+
+
+        DELETE FROM #Activity
+        WHERE IdAgent = @IdAgent;
+
+    END;
+
+
+    ------------------------------------------
+
+    --INSERT INTO [MaxiDW].[finc].[ARAgentByDay]
+
+    SELECT CAST(@BeginDate AS DATE) AS Day,
+           t.IdAgent,
+           dp.#PaymentDays,
+           ISNULL(credit.CreditAmount, 0) AS CreditAmount,
+           0 AS CreditScore,
+           Business.IdBusinessType,
+           t.IdAgentCurrentStatus,
+           t.DateOfStatusChange,
+           ISNULL(t.NumberTransactions, 0) AS NumberTransactions,
+           ISNULL(t.TransfersAmount + t.RejectedAmount + t.CancelledAmount, 0) AS Amount,
+           -- CommissionTransfersAmount - SpecialCommission as Commission,
+           ISNULL(Comm.Commission, 0) AS Commission,
+           ISNULL(Comm.SpecialCommission, 0) AS Bonus,
+           ISNULL(t.OPNumTrans, 0) AS OPNum,
+           ISNULL(t.OPAmount, 0) AS OPAmount,
+           ISNULL(t.OPCommission + t.OPAmountCancel, 0) AS OPFee,
+           ISNULL(CommOP.Commission, 0) AS OPCommission,
+           ISNULL(t.CurrentBalance, 0) AS CurrentBalance,
+           ISNULL(   CASE
+                         WHEN c.cp1 IS NULL THEN
+                             c.cp2
+                         ELSE
+                             c.cp1
+                     END,
+                     0
+                 ) InitialCP,
+           ISNULL(   CASE
+                         WHEN c.cp1 IS NULL THEN
+                             c.cp2
+                         ELSE
+                             c.cp1
+                     END,
+                     0
+                 ) - CASE
+                         WHEN c.idcp1 = c.idfcp THEN
+                             c.cp1
+                         WHEN c.idcp2 = c.idfcp THEN
+                             c.cp2
+                         ELSE
+                             ISNULL(c.fcp, 0)
+                     END CPMovements,
+           CASE
+               WHEN c.idcp1 = c.idfcp THEN
+                   c.cp1
+               WHEN c.idcp2 = c.idfcp THEN
+                   c.cp2
+               ELSE
+                   ISNULL(c.fcp, 0)
+           END FinalCP,
+           --CurrentBalance+FinalCP as ConsolidatedDebt,
+           ISNULL(t.CommissionTransfersAmount, 0) AS Fee,
+           --comm.IncomeFee,
+           ISNULL(sc.Spected, 0) AS Spected,
+           --isnull(sc."Current",0) "Current",
+           ISNULL(Bal.Balance, 0) AS [Current],
+           sc.[Current] - sc.Spected AS CurrentVsSpected,
+           credit.CreditAmount AS LastCreditLimit,
+           t.CurrentBalance AS LastCurrentBalance,
+           sc.[Current] AS LastCurrent,
+           sc.Spected AS LastSpected,
+           CASE
+               WHEN DATEPART(dw, CAST(@BeginDate AS DATE)) IN ( 7, 1 )
+                    OR CAST(@BeginDate AS DATE)IN
+                       (
+                           SELECT Holiday FROM MaxiDW.finc.LaboralDays
+                       ) THEN
+                   0
+               ELSE
+                   sc.[Current]
+           END AS LastLaboralDaysCurrent,
+           CASE
+               WHEN DATEPART(dw, CAST(@BeginDate AS DATE)) IN ( 7, 1 )
+                    OR CAST(@BeginDate AS DATE)IN
+                       (
+                           SELECT Holiday FROM MaxiDW.finc.LaboralDays
+                       ) THEN
+                   0
+               ELSE
+                   sc.Spected
+           END AS LastLaboralDaysSpected,
+           sc.[Current] - sc.Spected AS LastCurrentVsSpected,
+           CASE
+               WHEN DATEPART(dw, CAST(@BeginDate AS DATE)) IN ( 7, 1 )
+                    OR CAST(@BeginDate AS DATE)IN
+                       (
+                           SELECT Holiday FROM MaxiDW.finc.LaboralDays
+                       ) THEN
+                   0
+               ELSE
+                   CASE
+                       WHEN sc.[Current] - sc.Spected < 0 THEN
+                           1
+                       ELSE
+                           0
+                   END
+           END AS DelinquencyDays,
+           1 AS TotalDias,
+           CASE
+               WHEN DATEPART(dw, CAST(@BeginDate AS DATE)) IN ( 7, 1 )
+                    OR CAST(@BeginDate AS DATE)IN
+                       (
+                           SELECT Holiday FROM MaxiDW.finc.LaboralDays
+                       ) THEN
+                   0
+               ELSE
+                   1
+           END AS TotalDiasLaborales,
+           CASE
+               WHEN DATEPART(dw, CAST(@BeginDate AS DATE)) IN ( 7, 1 )
+                    OR CAST(@BeginDate AS DATE)IN
+                       (
+                           SELECT Holiday FROM MaxiDW.finc.LaboralDays
+                       ) THEN
+                   NULL
+               ELSE
+                   CASE
+                       WHEN sc.Spected > 0 THEN
+           (CONVERT(DECIMAL(18, 8), sc.[Current])) / CONVERT(DECIMAL(18, 8), sc.Spected)
+                       ELSE
+                           NULL
+                   END
+           END AS AVGCurrentDivSpected,
+           CASE
+               WHEN DATEPART(dw, CAST(@BeginDate AS DATE)) IN ( 7, 1 )
+                    OR CAST(@BeginDate AS DATE)IN
+                       (
+                           SELECT Holiday FROM MaxiDW.finc.LaboralDays
+                       ) THEN
+                   NULL
+               ELSE
+                   CASE
+                       WHEN sc.Spected > 0 THEN
+           (CONVERT(DECIMAL(18, 8), sc.[Current])) / CONVERT(DECIMAL(18, 8), sc.Spected)
+                       ELSE
+                           NULL
+                   END
+           END AS SUMCurrentDivSpected,
+           CASE
+               WHEN DATEPART(dw, CAST(@BeginDate AS DATE)) IN ( 7, 1 )
+                    OR CAST(@BeginDate AS DATE)IN
+                       (
+                           SELECT Holiday FROM MaxiDW.finc.LaboralDays
+                       ) THEN
+                   NULL
+               ELSE
+                   CASE
+                       WHEN sc.Spected > 0 THEN
+                           1
+                       ELSE
+                           NULL
+                   END
+           END AS COUNTCurrentDivSpected,
+           CASE
+               WHEN DATEPART(dw, CAST(@BeginDate AS DATE)) IN ( 7, 1 )
+                    OR CAST(@BeginDate AS DATE)IN
+                       (
+                           SELECT Holiday FROM MaxiDW.finc.LaboralDays
+                       ) THEN
+                   NULL
+               ELSE
+                   CASE
+                       WHEN sc.Spected > 0 THEN
+           (CONVERT(DECIMAL(18, 8), sc.[Current])) / CONVERT(DECIMAL(18, 8), sc.Spected) * 100
+                       ELSE
+                           NULL
+                   END
+           END AS AvgDebtPayment,
+           CASE
+               WHEN DATEPART(dw, CAST(@BeginDate AS DATE)) IN ( 7, 1 )
+                    OR CAST(@BeginDate AS DATE)IN
+                       (
+                           SELECT Holiday FROM MaxiDW.finc.LaboralDays
+                       ) THEN
+                   NULL
+               ELSE
+                   CASE
+                       WHEN sc.Spected > 0 THEN
+           (CONVERT(DECIMAL(18, 8), sc.[Current])) / CONVERT(DECIMAL(18, 8), sc.Spected) * 100
+                       ELSE
+                           NULL
+                   END
+           END AS SUMAvgDebtPayment,
+           CASE
+               WHEN DATEPART(dw, CAST(@BeginDate AS DATE)) IN ( 7, 1 )
+                    OR CAST(@BeginDate AS DATE)IN
+                       (
+                           SELECT Holiday FROM MaxiDW.finc.LaboralDays
+                       ) THEN
+                   NULL
+               ELSE
+                   CASE
+                       WHEN sc.Spected > 0 THEN
+           (CONVERT(DECIMAL(18, 8), sc.[Current])) / CONVERT(DECIMAL(18, 8), sc.Spected) * 100
+                       ELSE
+                           NULL
+                   END
+           END AS COUNTAvgDebtPayment,
+           (ISNULL(t.TransfersAmount + t.RejectedAmount + t.CancelledAmount, 0)
+            + ISNULL(t.CommissionTransfersAmount, 0)
+           ) AS AvgDailyOperations,
+           ISNULL(t.NumberTransactions, 0) AS AvgDailyTransactions,
+           CASE
+               WHEN ISNULL(t.NumberTransactions, 0) > 0 THEN
+                   1
+               ELSE
+                   NULL
+           END AS DaysWithTrans,
+           CASE
+               WHEN (ISNULL(t.NumberTransactions, 0)) > 0 THEN
+                   CASE
+                       WHEN ((ISNULL(t.TransfersAmount + t.RejectedAmount + t.CancelledAmount, 0)
+                              + ISNULL(t.CommissionTransfersAmount, 0)
+                             ) / (ISNULL(t.NumberTransactions, 0))
+                            ) > 0 THEN
+                           credit.CreditAmount
+                           / ((ISNULL(t.TransfersAmount + t.RejectedAmount + t.CancelledAmount, 0)
+                               + ISNULL(t.CommissionTransfersAmount, 0)
+                              ) / (ISNULL(t.NumberTransactions, 0))
+                             )
+                       ELSE
+                           0
+                   END
+               ELSE
+                   0
+           END AS [CurrentCreditLimit/AvgMT],
+           CONVERT(VARCHAR(25), DATEADD(dd, - (DAY(GETDATE()) - 1), GETDATE()), 23) AS MinDate,
+           CAST(@BeginDate AS DATE) AS MaxDate
+    FROM #tempFinal t
+        LEFT JOIN #CP c
+            ON t.IdAgent = c.IdAgent
+        LEFT JOIN
+        (
+            SELECT fee.IdAgent,
+                   SUM(fee.AmountInDollars) AS A,
+                   SUM(fee.Transac) AS t,
+                   SUM(fee.Fee) AS Fee
+            FROM
+            (
+                SELECT T.IdAgent,
+                       CONVERT(DATE, T.DateOfTransfer) TransactionDate,
+                       SUM(T.AmountInDollars) AmountInDollars,
+                       COUNT(1) Transac,
+                       SUM(T.Fee) AS Fee
+                FROM dbo.Transfer T
+                WHERE CAST(T.DateOfTransfer AS DATE) >= @BeginDate
+                      AND CAST(T.DateOfTransfer AS DATE) < @EndDate
+                      AND T.IdAgent NOT IN ( 4336, 1242 )
+                GROUP BY T.IdAgent,
+                         CONVERT(DATE, T.DateOfTransfer)
+                UNION ALL
+                SELECT t.IdAgent,
+                       CONVERT(DATE, t.DateOfTransfer) TransactionDate,
+                       SUM(t.AmountInDollars),
+                       COUNT(1) Transac,
+                       SUM(t.Fee) AS Fee
+                FROM dbo.TransferClosed t
+                WHERE CAST(t.DateOfTransfer AS DATE) >= @BeginDate
+                      AND CAST(t.DateOfTransfer AS DATE) < @EndDate
+                      AND t.IdAgent NOT IN ( 4336, 1242 )
+                GROUP BY t.IdAgent,
+                         CONVERT(DATE, t.DateOfTransfer)
+                UNION ALL
+                SELECT t.IdAgent,
+                       CONVERT(DATE, t.DateStatusChange) TransactionDate,
+                       SUM(-t.AmountInDollars),
+                       -COUNT(1) Transac,
+                       SUM(-t.Fee) AS Fee
+                FROM dbo.Transfer t
+                WHERE CAST(t.DateStatusChange AS DATE) >= @BeginDate
+                      AND CAST(t.DateStatusChange AS DATE) < @EndDate
+                      AND t.IdStatus IN ( 31, 22 )
+                      AND t.IdAgent NOT IN ( 4336, 1242 )
+                GROUP BY t.IdAgent,
+                         CONVERT(DATE, t.DateStatusChange)
+                UNION ALL
+                SELECT t.IdAgent,
+                       CONVERT(DATE, t.DateStatusChange) TransactionDate,
+                       SUM(-t.AmountInDollars),
+                       -COUNT(1) Transac,
+                       SUM(-t.Fee) AS Fee
+                FROM dbo.TransferClosed t
+                WHERE CAST(t.DateStatusChange AS DATE) >= @BeginDate
+                      AND CAST(t.DateStatusChange AS DATE) < @EndDate
+                      AND t.IdStatus IN ( 31, 22 )
+                      AND t.IdAgent NOT IN ( 4336, 1242 )
+                GROUP BY t.IdAgent,
+                         CONVERT(DATE, t.DateStatusChange)
+            ) AS fee
+            --where  IdAgent=1244
+            GROUP BY fee.IdAgent
+        ) AS t1
+            ON t.IdAgent = t1.IdAgent
+        LEFT JOIN
+        (
+            SELECT a.IdAgent,
+                   c.Name AS AgentClass,
+                   ct.Name AS CollectType,
+                   a.AgentBusinessType
+            FROM dbo.Agent a
+                JOIN dbo.AgentCollectType ct
+                    ON a.IdAgentCollectType = ct.IdAgentCollectType
+                JOIN dbo.AgentClass c
+                    ON a.IdAgentClass = c.IdAgentClass
+        ) a
+            ON t.IdAgent = a.IdAgent
+        LEFT JOIN
+        (
+            SELECT a.IdAgent,
+                   SUM(m.AmountByCalendar + m.AmountByLastDay) AS Spected,
+                   SUM(m.CollectAmount) AS "Current"
+            FROM dbo.Agent a
+                LEFT JOIN dbo.MaxiCollection m
+                    ON a.IdAgent = m.IdAgent
+            WHERE m.DateOfCollection = dbo.RemoveTimeFromDatetime(@BeginDate)
+            GROUP BY a.IdAgent
+        ) AS sc
+            ON t.IdAgent = sc.IdAgent
+        LEFT JOIN
+        (
+            SELECT a.IdAgent,
+                   CASE
+                       WHEN credit.CreditAmount IS NULL THEN
+                           a.CreditAmount
+                       ELSE
+                           credit.CreditAmount
+                   END AS CreditAmount
+            FROM dbo.Agent a
+                LEFT JOIN
+                (
+                    SELECT IdAgent,
+                           CreditAmount
+                    FROM dbo.AgentCreditLimitHistory
+                    WHERE IdAgentCreditLimitHistory IN
+                          (
+                              SELECT MAX(IdAgentCreditLimitHistory)
+                              FROM dbo.AgentCreditLimitHistory
+                              GROUP BY IdAgent
+                          )
+                ) AS credit
+                    ON a.IdAgent = credit.IdAgent
+        ) AS credit
+            ON t.IdAgent = credit.IdAgent
+        LEFT JOIN
+        (
+            SELECT IdAgent,
+                   COUNT(DISTINCT (#days)) AS #PaymentDays
+            FROM dbo.Agent
+                UNPIVOT
+                (
+                    #days
+                    FOR diasemana IN (DoneOnSundayPayOn, DoneOnMondayPayOn, DoneOnTuesdayPayOn, DoneOnWednesdayPayOn,
+                                      DoneOnThursdayPayOn, DoneOnFridayPayOn, DoneOnSaturdayPayOn
+                                     )
+                ) AS a
+            --where IdAgent=1241
+            GROUP BY IdAgent
+        ) AS dp
+            ON t.IdAgent = dp.IdAgent
+        LEFT JOIN
+        (
+            SELECT IdAgent,
+                   AgentcommissionMonthly + FxFeeM + AgentcommissionRetain + FxFeeR AS Commission,
+                   SpecialCommission,
+                   IncomeFee
+            FROM #ProfitTabla
+        ) AS Comm
+            ON t.IdAgent = Comm.IdAgent
+        LEFT JOIN
+        (
+            SELECT idAgent,
+                   AgentCommMonthly + AgentCommRetain AS Commission
+            FROM #ProfitOPtabla
+        ) AS CommOP
+            ON t.IdAgent = CommOP.idAgent
+        LEFT JOIN
+        (
+            SELECT SUM(t1.AmountNew) AS Balance,
+                   t1.DateOfMovement,
+                   t1.IdAgent
+            FROM
+            (
+                SELECT CASE
+                           WHEN DebitOrCredit = 'Credit' THEN
+                               Amount
+                           ELSE
+                               Amount * -1
+                       END AS AmountNew,
+                       CAST(DateOfMovement AS DATE) AS DateOfMovement,
+                       IdAgent
+                FROM dbo.AgentBalance
+                WHERE TypeOfMovement IN ( 'DEP', 'CGO', 'CH', 'CHNFS', 'CHRTN', 'CHVF' )
+                      AND CAST(DateOfMovement AS DATE) >= @BeginDate
+                      AND CAST(DateOfMovement AS DATE) <= @BeginDate
+            ) AS t1
+            GROUP BY t1.DateOfMovement,
+                     t1.IdAgent
+        ) AS Bal
+            ON t.IdAgent = Bal.IdAgent
+        LEFT JOIN
+        (SELECT IdAgent, IdBusinessType FROM #AgentActivity) AS Business
+            ON t.IdAgent = Business.IdAgent
+    WHERE t.IdAgent NOT IN ( 1242, 4336, 10106, 2676, 2878, 8640 )
+          AND t.IdAgentCurrentStatus NOT IN ( 2, 5, 6 )
+    ORDER BY t.Agent,
+             1;
+
+
+END TRY
+BEGIN CATCH
+
+    DECLARE @ErrorMessage NVARCHAR(4000);
+    DECLARE @ErrorSeverity INT;
+    DECLARE @ErrorState INT;
+
+    SELECT @ErrorMessage = ERROR_MESSAGE(),
+           @ErrorSeverity = ERROR_SEVERITY(),
+           @ErrorState = ERROR_STATE();
+
+    RAISERROR(   @ErrorMessage,  -- Message text.
+                 @ErrorSeverity, -- Severity.
+                 @ErrorState     -- State.
+             );
+END CATCH;
