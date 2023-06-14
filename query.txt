@@ -1,3 +1,7 @@
+USE MaxiDev;
+
+GO
+/*
 CREATE TABLE [dbo].[Transfer] ( IdTransfer int NOT NULL PRIMARY KEY, IdCustomer int NOT NULL, IdBeneficiary int NOT NULL, IdPaymentType int NOT NULL, IdBranch int NULL, IdPayer int NOT NULL, IdGateway int NULL, GatewayBranchCode nvarchar(-1) NOT NULL, IdAgentPaymentSchema int NOT NULL, IdAgent int NOT NULL, IdAgentSchema int NULL, IdCountryCurrency int NOT NULL, IdStatus int NOT NULL, ClaimCode nvarchar(50) NOT NULL, ConfirmationCode nvarchar(50) NOT NULL, AmountInDollars money NOT NULL, Fee money NOT NULL, AgentCommission money NOT NULL, CorporateCommission money NOT NULL, DateOfTransfer datetime NOT NULL, ExRate money NOT NULL, ReferenceExRate money NOT NULL, AmountInMN money NOT NULL, Folio int NOT NULL, DepositAccountNumber nvarchar(-1) NOT NULL, DateOfLastChange datetime NOT NULL, EnterByIdUser int NOT NULL, TotalAmountToCorporate money NOT NULL, BeneficiaryName nvarchar(-1) NOT NULL, BeneficiaryFirstLastName nvarchar(-1) NOT NULL, BeneficiarySecondLastName nvarchar(-1) NOT NULL, BeneficiaryAddress nvarchar(-1) NOT NULL, BeneficiaryCity nvarchar(-1) NOT NULL, BeneficiaryState nvarchar(-1) NOT NULL, BeneficiaryCountry nvarchar(-1) NOT NULL, BeneficiaryZipcode nvarchar(-1) NOT NULL, BeneficiaryPhoneNumber nvarchar(-1) NOT NULL, BeneficiaryCelularNumber nvarchar(-1) NOT NULL, BeneficiarySSNumber nvarchar(-1) NULL, BeneficiaryBornDate datetime NULL, BeneficiaryOccupation nvarchar(-1) NULL, BeneficiaryNote nvarchar(-1) NOT NULL, CustomerName nvarchar(-1) NOT NULL, CustomerIdAgentCreatedBy int NOT NULL, CustomerIdCustomerIdentificationType int NULL, CustomerFirstLastName nvarchar(-1) NOT NULL, CustomerSecondLastName nvarchar(-1) NOT NULL, CustomerAddress nvarchar(-1) NOT NULL, CustomerCity nvarchar(-1) NOT NULL, CustomerState nvarchar(-1) NOT NULL, CustomerCountry nvarchar(-1) NOT NULL, CustomerZipcode nvarchar(-1) NOT NULL, CustomerPhoneNumber nvarchar(-1) NOT NULL, CustomerCelullarNumber nvarchar(-1) NOT NULL, CustomerSSNumber nvarchar(-1) NOT NULL, CustomerBornDate datetime NULL, CustomerOccupation nvarchar(-1) NOT NULL, CustomerIdentificationNumber nvarchar(-1) NOT NULL, CustomerExpirationIdentification datetime NULL, IdOnWhoseBehalf int NULL, Purpose nvarchar(200) NOT NULL, Relationship nvarchar(200) NOT NULL, MoneySource nvarchar(200) NOT NULL, AgentCommissionExtra money NOT NULL, AgentCommissionOriginal money NOT NULL, ModifierCommissionSlider money NOT NULL, ModifierExchangeRateSlider money NOT NULL, CustomerIdCarrier int NULL, IdSeller int NOT NULL, ReviewDenyList bit NULL, ReviewOfac bit NULL, ReviewKYC bit NULL, ReviewRejected bit NULL, ReviewGateway bit NULL, ReviewReturned bit NULL, OriginExRate money NOT NULL, OriginAmountInMN money NOT NULL, DateStatusChange datetime NULL, NoteAdditional nvarchar(-1) NULL, CustomerIdentificationIdCountry int NULL, CustomerIdentificationIdState int NULL, IdReasonForCancel int NULL, IdBeneficiaryIdentificationType int NULL, BeneficiaryIdentificationNumber nvarchar(-1) NULL, AgentNotificationSent bit NOT NULL, EmailByJobSent bit NOT NULL, FromStandByToKYC bit NULL, CustomerIdCountryOfBirth int NULL, BeneficiaryIdCountryOfBirth int NULL, AccountTypeId int NULL, ReviewId bit NULL, CustomerOccupationDetail nvarchar(-1) NULL, TransferIdCity int NULL, BeneficiaryIdCarrier int NULL, FeeSecondary money NULL, NumModify int NULL, CustomerIdOccupation int NULL, CustomerIdSubOccupation int NULL, CustomerSubOccupationOther varchar(50) NULL, BranchCodePontual varchar(10) NULL, IdTransferResend int NULL, StateTax money NULL, IdPaymentMethod int NOT NULL, Discount money NOT NULL, DateOfTransferUTC datetime NULL, OperationFee money NOT NULL, IsValidCustomerPhoneNumber bit NULL, IdDialingCodePhoneNumber int NULL, IdDialingCodeBeneficiaryPhoneNumber int NULL, IsRequiredCustomerPhoneNumber bit NULL, IsRefunded bit NULL, ReviewCancelled bit NULL) , FOREIGN KEY (IdBranch) REFERENCES Branch(IdBranch), FOREIGN KEY (IdCountryCurrency) REFERENCES CountryCurrency(IdCountryCurrency), FOREIGN KEY (IdCustomer) REFERENCES Customer(IdCustomer), FOREIGN KEY (IdGateway) REFERENCES Gateway(IdGateway), FOREIGN KEY (CustomerIdentificationIdCountry) REFERENCES Country(IdCountry), FOREIGN KEY (IdPayer) REFERENCES Payer(IdPayer), FOREIGN KEY (CustomerIdentificationIdState) REFERENCES State(IdState), FOREIGN KEY (IdPaymentType) REFERENCES PaymentType(IdPaymentType), FOREIGN KEY (IdStatus) REFERENCES Status(IdStatus), FOREIGN KEY (AccountTypeId) REFERENCES AccountType(AccountTypeId), FOREIGN KEY (IdPaymentMethod) REFERENCES PaymentMethod(IdPaymentMethod), FOREIGN KEY (IdOnWhoseBehalf) REFERENCES OnWhoseBehalf(IdOnWhoseBehalf), FOREIGN KEY (TransferIdCity) REFERENCES City(IdCity), FOREIGN KEY (IdReasonForCancel) REFERENCES ReasonForCancel(IdReasonForCancel), FOREIGN KEY (IdDialingCodeBeneficiaryPhoneNumber) REFERENCES DialingCodePhoneNumber(IdDialingCodePhoneNumber), FOREIGN KEY (IdDialingCodePhoneNumber) REFERENCES DialingCodePhoneNumber(IdDialingCodePhoneNumber), FOREIGN KEY (CustomerIdCountryOfBirth) REFERENCES CountryBirth(IdCountryBirth), FOREIGN KEY (IdBeneficiaryIdentificationType) REFERENCES BeneficiaryIdentificationType(IdBeneficiaryIdentificationType), FOREIGN KEY (BeneficiaryIdCountryOfBirth) REFERENCES CountryBirth(IdCountryBirth), FOREIGN KEY (IdAgent) REFERENCES Agent(IdAgent), FOREIGN KEY (IdBeneficiary) REFERENCES Beneficiary(IdBeneficiary)
 CREATE TABLE [dbo].[TransferClosed] ( IdTransferClosed int NOT NULL PRIMARY KEY, IdCustomer int NOT NULL, IdBeneficiary int NOT NULL, IdPaymentType int NOT NULL, PaymentTypeName nvarchar(-1) NOT NULL, IdBranch int NULL, BranchName nvarchar(-1) NULL, IdPayer int NOT NULL, PayerName nvarchar(-1) NOT NULL, IdGateway int NULL, GatewayName nvarchar(-1) NULL, GatewayBranchCode nvarchar(-1) NULL, IdAgentPaymentSchema int NOT NULL, AgentPaymentSchema nvarchar(-1) NOT NULL, IdAgent int NOT NULL, AgentName nvarchar(-1) NOT NULL, IdAgentSchema int NULL, SchemaName nvarchar(-1) NULL, IdCountryCurrency int NOT NULL, IdCountry int NOT NULL, CountryName nvarchar(-1) NOT NULL, IdCurrency int NOT NULL, CurrencyName nvarchar(-1) NOT NULL, IdStatus int NOT NULL, StatusName nvarchar(-1) NOT NULL, ClaimCode nvarchar(50) NOT NULL, ConfirmationCode nvarchar(50) NOT NULL, AmountInDollars money NOT NULL, Fee money NOT NULL, AgentCommission money NOT NULL, CorporateCommission money NOT NULL, DateOfTransfer datetime NOT NULL, ExRate money NOT NULL, ReferenceExRate money NOT NULL, AmountInMN money NOT NULL, Folio int NOT NULL, DepositAccountNumber nvarchar(-1) NOT NULL, DateOfLastChange datetime NOT NULL, EnterByIdUser int NOT NULL, TotalAmountToCorporate money NOT NULL, BeneficiaryName nvarchar(-1) NOT NULL, BeneficiaryFirstLastName nvarchar(-1) NOT NULL, BeneficiarySecondLastName nvarchar(-1) NOT NULL, BeneficiaryAddress nvarchar(-1) NOT NULL, BeneficiaryCity nvarchar(-1) NOT NULL, BeneficiaryState nvarchar(-1) NOT NULL, BeneficiaryCountry nvarchar(-1) NOT NULL, BeneficiaryZipcode nvarchar(-1) NOT NULL, BeneficiaryPhoneNumber nvarchar(-1) NOT NULL, BeneficiaryCelularNumber nvarchar(-1) NOT NULL, BeneficiarySSNumber nvarchar(-1) NULL, BeneficiaryBornDate datetime NULL, BeneficiaryOccupation nvarchar(-1) NULL, BeneficiaryNote nvarchar(-1) NOT NULL, CustomerName nvarchar(-1) NOT NULL, CustomerIdAgentCreatedBy int NOT NULL, CustomerIdCustomerIdentificationType int NULL, CustomerFirstLastName nvarchar(-1) NOT NULL, CustomerSecondLastName nvarchar(-1) NOT NULL, CustomerAddress nvarchar(-1) NOT NULL, CustomerCity nvarchar(-1) NOT NULL, CustomerState nvarchar(-1) NOT NULL, CustomerCountry nvarchar(-1) NOT NULL, CustomerZipcode nvarchar(-1) NOT NULL, CustomerPhoneNumber nvarchar(-1) NOT NULL, CustomerCelullarNumber nvarchar(-1) NOT NULL, CustomerSSNumber nvarchar(-1) NOT NULL, CustomerBornDate datetime NULL, CustomerOccupation nvarchar(-1) NOT NULL, CustomerIdentificationNumber nvarchar(-1) NOT NULL, CustomerExpirationIdentification datetime NULL, IdOnWhoseBehalf int NULL, Purpose nvarchar(200) NOT NULL, Relationship nvarchar(200) NOT NULL, MoneySource nvarchar(200) NOT NULL, AgentCommissionExtra money NULL, AgentCommissionOriginal money NULL, ModifierCommissionSlider money NULL, ModifierExchangeRateSlider money NULL, CustomerIdCarrier int NULL, ReviewDenyList bit NULL, ReviewOfac bit NULL, ReviewKYC bit NULL, IdSeller int NOT NULL, ReviewRejected bit NULL, ReviewGateway bit NULL, ReviewReturned bit NULL, OriginExRate money NOT NULL, OriginAmountInMN money NOT NULL, DateStatusChange datetime NULL, CustomerIdentificationIdCountry int NULL, CustomerIdentificationIdState int NULL, IdReasonForCancel int NULL, IdBeneficiaryIdentificationType int NULL, BeneficiaryIdentificationNumber nvarchar(-1) NULL, AgentNotificationSent bit NOT NULL, EmailByJobSent bit NOT NULL, FromStandByToKYC bit NULL, CustomerIdCountryOfBirth int NULL, BeneficiaryIdCountryOfBirth int NULL, AccountTypeId int NULL, ReviewId bit NULL, CustomerOccupationDetail nvarchar(-1) NULL, TransferIdCity int NULL, BeneficiaryIdCarrier int NULL, FeeSecondary money NULL, NumModify int NULL, CustomerIdOccupation int NULL, CustomerIdSubOccupation int NULL, CustomerSubOccupationOther varchar(50) NULL, IdPaymentMethod int NOT NULL, Discount money NOT NULL, DateOfTransferUTC datetime NULL, OperationFee money NOT NULL, IsValidCustomerPhoneNumber bit NULL, IdDialingCodePhoneNumber int NULL, IdDialingCodeBeneficiaryPhoneNumber int NULL, IsRequiredCustomerPhoneNumber bit NULL, IsRefunded bit NULL, ReviewCancelled bit NULL) , FOREIGN KEY (AccountTypeId) REFERENCES AccountType(AccountTypeId), FOREIGN KEY (IdPaymentMethod) REFERENCES PaymentMethod(IdPaymentMethod), FOREIGN KEY (TransferIdCity) REFERENCES City(IdCity), FOREIGN KEY (IdReasonForCancel) REFERENCES ReasonForCancel(IdReasonForCancel), FOREIGN KEY (IdDialingCodeBeneficiaryPhoneNumber) REFERENCES DialingCodePhoneNumber(IdDialingCodePhoneNumber), FOREIGN KEY (IdDialingCodePhoneNumber) REFERENCES DialingCodePhoneNumber(IdDialingCodePhoneNumber), FOREIGN KEY (CustomerIdCountryOfBirth) REFERENCES CountryBirth(IdCountryBirth), FOREIGN KEY (BeneficiaryIdCountryOfBirth) REFERENCES CountryBirth(IdCountryBirth)
 CREATE TABLE [dbo].[AgentBalance] ( IdAgentBalance int NOT NULL PRIMARY KEY, IdAgent int NOT NULL, TypeOfMovement nvarchar(-1) NOT NULL, DateOfMovement datetime NOT NULL, Amount money NOT NULL, Reference nvarchar(-1) NOT NULL, Description nvarchar(-1) NOT NULL, Country nvarchar(-1) NOT NULL, Commission money NOT NULL, DebitOrCredit nvarchar(-1) NOT NULL, Balance money NOT NULL, IdTransfer int NULL, FxFee money NOT NULL, IsMonthly bit NULL) , FOREIGN KEY (IdAgent) REFERENCES Agent(IdAgent)
@@ -11,6 +15,395 @@ CREATE TABLE [dbo].[AgentCollection] ( IdAgentCollection int NOT NULL PRIMARY KE
 CREATE TABLE [dbo].[Users] ( IdUser int NOT NULL PRIMARY KEY, UserName nvarchar(-1) NOT NULL, UserLogin nvarchar(-1) NOT NULL, UserPassword nvarchar(-1) NOT NULL, DateOfCreation datetime NOT NULL, CreatedByIdUser int NOT NULL, IdUserType int NOT NULL, ChangePasswordAtNextLogin bit NOT NULL, AllowToRegisterPc bit NOT NULL, IdGenericStatus int NOT NULL, salt nvarchar(50) NOT NULL, DateOfLastChange datetime NULL, EnterByIdUser int NOT NULL, FirstName nvarchar(100) NULL, LastName nvarchar(50) NULL, SecondLastName nvarchar(50) NULL) , FOREIGN KEY (IdGenericStatus) REFERENCES GenericStatus(IdGenericStatus), FOREIGN KEY (IdUserType) REFERENCES UsersType(IdUserType)
 CREATE TABLE [dbo].[SpecialCommissionBalance] ( IdSpecialCommissionBalance int NOT NULL PRIMARY KEY, IdAgent int NOT NULL, DateOfMovement datetime NOT NULL, Commission money NOT NULL, IdSpecialCommissionRule int NOT NULL, DateOfApplication datetime NOT NULL) , FOREIGN KEY (IdAgent) REFERENCES Agent(IdAgent)
 CREATE TABLE [dbo].[PosTransfer] ( IdPosTransfer int NOT NULL PRIMARY KEY, IdTransfer int NULL, IdTransferClosed int NULL, AuthorizationNo nvarchar(10) NOT NULL, BatchNo nvarchar(100) NOT NULL, ReferenceNo nvarchar(100) NOT NULL, TerminalId nvarchar(100) NOT NULL, MerchantId nvarchar(100) NOT NULL, AccountNo nvarchar(100) NOT NULL, IdPosStatus smallint NOT NULL, IdCardEntryMode smallint NOT NULL, IdCardType smallint NOT NULL, IdPosActionType int NOT NULL, CreationDate datetime NULL, IdUser int NULL) , FOREIGN KEY (IdUser) REFERENCES Users(IdUser), FOREIGN KEY (IdTransfer) REFERENCES Transfer(IdTransfer), FOREIGN KEY (IdTransferClosed) REFERENCES TransferClosed(IdTransferClosed)
+*/
+
+BEGIN TRY
+    DECLARE @IdCountryCurrency INT,
+            @StartDate DATE,
+            @EndDate DATE,
+            @Range1 DECIMAL(18, 2),
+            @Range2 DECIMAL(18, 2),
+            @State NVARCHAR(50),
+            @ReportCorpType INT;
+
+    SET @IdCountryCurrency = 1;
+    SET @StartDate = '2023-01-01';
+    SET @EndDate = '2023-06-01';
+    SET @Range1 = NULL;
+    SET @Range2 = NULL;
+    SET @State = NULL;
+    SET @ReportCorpType = 1;
+
+
+    SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+
+    DROP TABLE IF EXISTS #Transfer,
+                         #TransferRejected,
+                         #TransferExpired,
+                         #TransferClosedCancel,
+                         #TransferClosed,
+                         #TransferUnclaimed,
+                         #TransferClosedUnclaimed,
+                         #AgentBalance,
+                         #Agent,
+                         #AgentOtherCharge,
+                         #AgentCollectionDetail,
+                         #CountryCurrency,
+                         #AgentCollection,
+                         #Users,
+                         #SpecialCommissionBalance,
+                         #PosTransfer,
+                         #OtherCharges;
+
+
+
+
+    SELECT *
+    INTO #Transfer
+    FROM dbo.Transfer
+    WHERE IdCountryCurrency = CASE
+                                  WHEN @IdCountryCurrency = 0 THEN
+                                      IdCountryCurrency
+                                  ELSE
+                                      @IdCountryCurrency
+                              END
+          AND DateOfTransfer > @StartDate
+          AND DateOfTransfer < @EndDate
+          OR (
+                 DateStatusChange > @StartDate
+                 AND DateStatusChange < @EndDate
+                 AND IdStatus IN ( 31, 22, 27 )
+             )
+             AND
+             (
+                 (
+                     @Range1 IS NULL
+                     AND @Range2 IS NULL
+                 )
+                 OR AmountInDollars
+          BETWEEN @Range1 AND @Range2
+             );
+
+
+
+
+    SELECT IdAgent,
+           IdCountryCurrency,
+           DateOfTransfer,
+           DateStatusChange,
+           IdStatus,
+           AmountInDollars
+    INTO #TransferClosed
+    FROM dbo.TransferClosed
+    WHERE IdCountryCurrency = CASE
+                                  WHEN @IdCountryCurrency = 0 THEN
+                                      IdCountryCurrency
+                                  ELSE
+                                      @IdCountryCurrency
+                              END
+          AND DateOfTransfer > @StartDate
+          AND DateOfTransfer < @EndDate
+          OR (
+                 DateStatusChange > @StartDate
+                 AND DateStatusChange < @EndDate
+                 AND IdStatus IN ( 31, 22 )
+             )
+             AND
+             (
+                 (
+                     @Range1 IS NULL
+                     AND @Range2 IS NULL
+                 )
+                 OR AmountInDollars
+          BETWEEN @Range1 AND @Range2
+             );
+
+
+
+
+    SELECT IdAgentBalance,
+           DateOfMovement,
+           TypeOfMovement
+    INTO #AgentBalance
+    FROM AgentBalance
+    WHERE DateOfMovement >= @StartDate
+          AND DateOfMovement < @EndDate
+          AND
+          (
+              TypeOfMovement = 'CGO'
+              OR TypeOfMovement = 'DEBT'
+          );
+
+
+
+    SELECT IdAgentBalance,
+           IdOtherChargesMemo
+    INTO #AgentOtherCharge
+    FROM AgentOtherCharge
+    WHERE IdOtherChargesMemo IN ( 6, 9, 13, 19, 4, 5, 11, 12, 16, 17, 18, 24, 25 );
+
+
+
+
+    SELECT DateofLastChange
+    INTO #AgentCollectionDetail
+    FROM AgentCollectionDetail
+    WHERE DateofLastChange >= @StartDate
+          AND DateofLastChange < @EndDate;
+
+
+
+    SELECT IdAgent
+    INTO #AgentCollection
+    FROM AgentCollection;
+
+
+
+    SELECT IdAgent,
+           DateOfApplication
+    INTO #SpecialCommissionBalance
+    FROM dbo.SpecialCommissionBalance
+    WHERE DateOfApplication >= @StartDate
+          AND DateOfApplication < @EndDate;
+
+
+
+
+    SELECT IdCountryCurrency
+    INTO #CountryCurrency
+    FROM CountryCurrency;
+
+
+
+
+
+    SELECT IdAgent,
+           AgentName,
+           AgentCode,
+           IdUserSeller,
+           AgentState
+    INTO #Agent
+    FROM Agent
+    WHERE AgentState = ISNULL(@State, AgentState);
+
+
+
+    SELECT IdUser,
+           UserName
+    INTO #Users
+    FROM Users;
+
+
+
+
+    SELECT IdTransfer,
+           IdPosTransfer
+    INTO #PosTransfer
+    FROM PosTransfer;
+
+
+
+    SELECT t.IdAgent,
+           IdCountry,
+           t.IdCountryCurrency,
+           IdGateway,
+           IdPayer,
+           IdPaymentType,
+           AmountInDollars
+    INTO #TransferRejected
+    FROM Transfer t
+        JOIN Agent a
+            ON t.IdAgent = a.IdAgent
+        JOIN CountryCurrency cc
+            ON t.IdCountryCurrency = cc.IdCountryCurrency
+    WHERE t.IdCountryCurrency = IIF(@IdCountryCurrency = 0, t.IdCountryCurrency, @IdCountryCurrency)
+          AND DateStatusChange > @StartDate
+          AND DateStatusChange < @EndDate
+          AND t.IdAgent IN
+              (
+                  SELECT IdAgent FROM #Agent
+              )
+          AND IdStatus = 31
+          AND
+          (
+              (
+                  @Range1 IS NULL
+                  AND @Range2 IS NULL
+              )
+              OR AmountInDollars
+          BETWEEN @Range1 AND @Range2
+          );
+
+
+
+    SELECT IdAgent,
+           IdCountryCurrency,
+           DateOfTransfer,
+           DateStatusChange,
+           IdStatus,
+           AmountInDollars
+    INTO #TransferExpired
+    FROM dbo.Transfer
+    WHERE IdCountryCurrency = CASE
+                                  WHEN @IdCountryCurrency = 0 THEN
+                                      IdCountryCurrency
+                                  ELSE
+                                      @IdCountryCurrency
+                              END
+          AND DateOfTransfer > @StartDate
+          AND DateOfTransfer < @EndDate
+          OR (
+                 DateStatusChange > @StartDate
+                 AND DateStatusChange < @EndDate
+                 AND IdStatus IN ( 31, 22, 27 )
+             )
+             AND
+             (
+                 (
+                     @Range1 IS NULL
+                     AND @Range2 IS NULL
+                 )
+                 OR AmountInDollars
+          BETWEEN @Range1 AND @Range2
+             );
+
+
+
+    SELECT IdTransferClosed,
+           IdAgent,
+           IdCountry,
+           IdCountryCurrency,
+           IdGateway,
+           IdPayer,
+           IdPaymentType,
+           AmountInDollars
+    INTO #TransferClosedCancel
+    FROM TransferClosed t
+    WHERE IdCountryCurrency = IIF(@IdCountryCurrency = 0, IdCountryCurrency, @IdCountryCurrency)
+          AND DateStatusChange > @StartDate
+          AND DateStatusChange < @EndDate
+          AND IdAgent IN
+              (
+                  SELECT IdAgent FROM #Agent
+              )
+          AND IdStatus = 22
+          AND
+          (
+              (
+                  @Range1 IS NULL
+                  AND @Range2 IS NULL
+              )
+              OR t.AmountInDollars
+          BETWEEN @Range1 AND @Range2
+          );
+
+
+
+    SELECT ab.IdAgent,
+           SUM(IIF(ab.DebitOrCredit = 'Credit', ab.Amount, ab.Amount * (-1))) OVER (PARTITION BY ab.IdAgent) AS OtherCharges1,
+           SUM(IIF(oc.IdOtherChargesMemo IN ( 6, 9, 13, 19 ),
+                   IIF(ab.DebitOrCredit = 'Credit', ab.Amount, ab.Amount * (-1)),
+                   0)
+              ) OVER (PARTITION BY ab.IdAgent) AS OtherChargesC1,
+           SUM(IIF(oc.IdOtherChargesMemo IN ( 4, 5, 11, 12, 16, 17, 18, 24, 25 ),
+                   IIF(ab.DebitOrCredit != 'Credit', ab.Amount, ab.Amount * (-1)),
+                   0)
+              ) OVER (PARTITION BY ab.IdAgent) AS OtherChargesD1
+    INTO #OtherCharges
+    FROM AgentBalance ab
+        JOIN AgentOtherCharge oc
+            ON ab.IdAgentBalance = oc.IdAgentBalance
+               AND oc.IdOtherChargesMemo IN ( 6, 9, 13, 19, 4, 5, 11, 12, 16, 17, 18, 24, 25 )
+    WHERE ab.DateOfMovement >= @StartDate
+          AND ab.DateOfMovement < @EndDate
+          AND
+          (
+              ab.TypeOfMovement = 'CGO'
+              OR ab.TypeOfMovement = 'DEBT'
+          );
+
+
+
+    INSERT INTO #OtherCharges
+    SELECT AC.IdAgent,
+           SUM(o.AmountToPay) OVER (PARTITION BY AC.IdAgent) AS OtherCharges2,
+           SUM(IIF(o.AmountToPay > 0, o.AmountToPay, 0)) OVER (PARTITION BY AC.IdAgent) AS OtherChargesC2,
+           SUM(IIF(o.AmountToPay < 0, o.AmountToPay * (-1), 0)) OVER (PARTITION BY AC.IdAgent) AS OtherChargesD2
+    FROM AgentCollectionDetail o
+        INNER JOIN AgentCollection AC
+            ON AC.IdAgentCollection = o.IdAgentCollection
+    WHERE @ReportCorpType = 1
+          AND o.DateofLastChange >= @StartDate
+          AND o.DateofLastChange < @EndDate;
+
+
+
+    SELECT IdAgent,
+           IdCountry,
+           t.IdCountryCurrency
+    INTO #TransferUnclaimed
+    FROM Transfer t
+        JOIN CountryCurrency cc
+            ON t.IdCountryCurrency = cc.IdCountryCurrency
+    WHERE t.IdCountryCurrency = CASE
+                                    WHEN @IdCountryCurrency = 0 THEN
+                                        t.IdCountryCurrency
+                                    ELSE
+                                        @IdCountryCurrency
+                                END
+          AND DateStatusChange > @StartDate
+          AND DateStatusChange < @EndDate
+          AND IdStatus = 27
+          AND
+          (
+              (
+                  @Range1 IS NULL
+                  AND @Range2 IS NULL
+              )
+              OR t.AmountInDollars
+          BETWEEN @Range1 AND @Range2
+          );
+
+
+
+    SELECT IdAgent,
+           IdCountry,
+           IdCountryCurrency
+    INTO #TransferClosedUnclaimed
+    FROM dbo.TransferClosed t
+    WHERE IdCountryCurrency = CASE
+                                  WHEN @IdCountryCurrency = 0 THEN
+                                      IdCountryCurrency
+                                  ELSE
+                                      @IdCountryCurrency
+                              END
+          AND DateStatusChange > @StartDate
+          AND DateStatusChange < @EndDate
+          AND IdStatus = 27
+          AND
+          (
+              (
+                  @Range1 IS NULL
+                  AND @Range2 IS NULL
+              )
+              OR t.AmountInDollars
+          BETWEEN @Range1 AND @Range2
+          );
+
+END TRY
+BEGIN CATCH
+    DECLARE @ErrorMessage NVARCHAR(4000);
+    DECLARE @ErrorSeverity INT;
+    DECLARE @ErrorState INT;
+    SELECT @ErrorMessage = ERROR_MESSAGE(),
+           @ErrorSeverity = ERROR_SEVERITY(),
+           @ErrorState = ERROR_STATE();
+    RAISERROR(@ErrorMessage, @ErrorSeverity, @ErrorState);
+END CATCH;
+
+
+
+
 
 @codigo2 =  " ------------------------------Calculate OutPut --------------------------------------------------
     SELECT A.*,
