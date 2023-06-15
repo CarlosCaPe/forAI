@@ -1,0 +1,388 @@
+USE MaxiDev;
+
+GO
+
+
+BEGIN TRY
+    DECLARE @IdCountryCurrency INT,
+            @StartDate DATE,
+            @EndDate DATE,
+            @Range1 DECIMAL(18, 2),
+            @Range2 DECIMAL(18, 2),
+            @State NVARCHAR(50),
+            @ReportCorpType INT;
+
+    SET @IdCountryCurrency = 1;
+    SET @StartDate = '2023-01-01';
+    SET @EndDate = '2023-06-01';
+    SET @Range1 = NULL;
+    SET @Range2 = NULL;
+    SET @State = NULL;
+    SET @ReportCorpType = 1;
+
+
+    SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+
+    DROP TABLE IF EXISTS #Transfer,
+                         #TransferRejected,
+                         #TransferExpired,
+                         #TransferClosedCancel,
+                         #TransferClosed,
+                         #TransferUnclaimed,
+                         #TransferClosedUnclaimed,
+                         #AgentBalance,
+                         #Agent,
+                         #AgentOtherCharge,
+                         #AgentCollectionDetail,
+                         #CountryCurrency,
+                         #AgentCollection,
+                         #Users,
+                         #SpecialCommissionBalance,
+                         #PosTransfer,
+                         #OtherCharges;
+
+
+
+
+    SELECT *
+    INTO #Transfer
+    FROM dbo.Transfer
+    WHERE IdCountryCurrency = CASE
+                                  WHEN @IdCountryCurrency = 0 THEN
+                                      IdCountryCurrency
+                                  ELSE
+                                      @IdCountryCurrency
+                              END
+          AND DateOfTransfer > @StartDate
+          AND DateOfTransfer < @EndDate
+          OR (
+                 DateStatusChange > @StartDate
+                 AND DateStatusChange < @EndDate
+                 AND IdStatus IN ( 31, 22, 27 )
+             )
+             AND
+             (
+                 (
+                     @Range1 IS NULL
+                     AND @Range2 IS NULL
+                 )
+                 OR AmountInDollars
+          BETWEEN @Range1 AND @Range2
+             );
+
+
+
+
+    SELECT IdAgent,
+           IdCountryCurrency,
+           DateOfTransfer,
+           DateStatusChange,
+           IdStatus,
+           AmountInDollars
+    INTO #TransferClosed
+    FROM dbo.TransferClosed
+    WHERE IdCountryCurrency = CASE
+                                  WHEN @IdCountryCurrency = 0 THEN
+                                      IdCountryCurrency
+                                  ELSE
+                                      @IdCountryCurrency
+                              END
+          AND DateOfTransfer > @StartDate
+          AND DateOfTransfer < @EndDate
+          OR (
+                 DateStatusChange > @StartDate
+                 AND DateStatusChange < @EndDate
+                 AND IdStatus IN ( 31, 22 )
+             )
+             AND
+             (
+                 (
+                     @Range1 IS NULL
+                     AND @Range2 IS NULL
+                 )
+                 OR AmountInDollars
+          BETWEEN @Range1 AND @Range2
+             );
+
+
+
+
+    SELECT IdAgentBalance,
+           DateOfMovement,
+           TypeOfMovement
+    INTO #AgentBalance
+    FROM AgentBalance
+    WHERE DateOfMovement >= @StartDate
+          AND DateOfMovement < @EndDate
+          AND
+          (
+              TypeOfMovement = 'CGO'
+              OR TypeOfMovement = 'DEBT'
+          );
+
+
+
+    SELECT IdAgentBalance,
+           IdOtherChargesMemo
+    INTO #AgentOtherCharge
+    FROM AgentOtherCharge
+    WHERE IdOtherChargesMemo IN ( 6, 9, 13, 19, 4, 5, 11, 12, 16, 17, 18, 24, 25 );
+
+
+
+
+    SELECT DateofLastChange
+    INTO #AgentCollectionDetail
+    FROM AgentCollectionDetail
+    WHERE DateofLastChange >= @StartDate
+          AND DateofLastChange < @EndDate;
+
+
+
+    SELECT IdAgent
+    INTO #AgentCollection
+    FROM AgentCollection;
+
+
+
+    SELECT IdAgent,
+           DateOfApplication
+    INTO #SpecialCommissionBalance
+    FROM dbo.SpecialCommissionBalance
+    WHERE DateOfApplication >= @StartDate
+          AND DateOfApplication < @EndDate;
+
+
+
+
+    SELECT IdCountryCurrency
+    INTO #CountryCurrency
+    FROM CountryCurrency;
+
+
+
+
+
+    SELECT IdAgent,
+           AgentName,
+           AgentCode,
+           IdUserSeller,
+           AgentState
+    INTO #Agent
+    FROM Agent
+    WHERE AgentState = ISNULL(@State, AgentState);
+
+
+
+    SELECT IdUser,
+           UserName
+    INTO #Users
+    FROM Users;
+
+
+
+
+    SELECT IdTransfer,
+           IdPosTransfer
+    INTO #PosTransfer
+    FROM PosTransfer;
+
+
+
+    SELECT t.IdAgent,
+           IdCountry,
+           t.IdCountryCurrency,
+           IdGateway,
+           IdPayer,
+           IdPaymentType,
+           AmountInDollars
+    INTO #TransferRejected
+    FROM Transfer t
+        JOIN Agent a
+            ON t.IdAgent = a.IdAgent
+        JOIN CountryCurrency cc
+            ON t.IdCountryCurrency = cc.IdCountryCurrency
+    WHERE t.IdCountryCurrency = IIF(@IdCountryCurrency = 0, t.IdCountryCurrency, @IdCountryCurrency)
+          AND DateStatusChange > @StartDate
+          AND DateStatusChange < @EndDate
+          AND t.IdAgent IN
+              (
+                  SELECT IdAgent FROM #Agent
+              )
+          AND IdStatus = 31
+          AND
+          (
+              (
+                  @Range1 IS NULL
+                  AND @Range2 IS NULL
+              )
+              OR AmountInDollars
+          BETWEEN @Range1 AND @Range2
+          );
+
+
+
+    SELECT IdAgent,
+           IdCountryCurrency,
+           DateOfTransfer,
+           DateStatusChange,
+           IdStatus,
+           AmountInDollars
+    INTO #TransferExpired
+    FROM dbo.Transfer
+    WHERE IdCountryCurrency = CASE
+                                  WHEN @IdCountryCurrency = 0 THEN
+                                      IdCountryCurrency
+                                  ELSE
+                                      @IdCountryCurrency
+                              END
+          AND DateOfTransfer > @StartDate
+          AND DateOfTransfer < @EndDate
+          OR (
+                 DateStatusChange > @StartDate
+                 AND DateStatusChange < @EndDate
+                 AND IdStatus IN ( 31, 22, 27 )
+             )
+             AND
+             (
+                 (
+                     @Range1 IS NULL
+                     AND @Range2 IS NULL
+                 )
+                 OR AmountInDollars
+          BETWEEN @Range1 AND @Range2
+             );
+
+
+
+    SELECT IdTransferClosed,
+           IdAgent,
+           IdCountry,
+           IdCountryCurrency,
+           IdGateway,
+           IdPayer,
+           IdPaymentType,
+           AmountInDollars
+    INTO #TransferClosedCancel
+    FROM TransferClosed t
+    WHERE IdCountryCurrency = IIF(@IdCountryCurrency = 0, IdCountryCurrency, @IdCountryCurrency)
+          AND DateStatusChange > @StartDate
+          AND DateStatusChange < @EndDate
+          AND IdAgent IN
+              (
+                  SELECT IdAgent FROM #Agent
+              )
+          AND IdStatus = 22
+          AND
+          (
+              (
+                  @Range1 IS NULL
+                  AND @Range2 IS NULL
+              )
+              OR t.AmountInDollars
+          BETWEEN @Range1 AND @Range2
+          );
+
+
+
+    SELECT ab.IdAgent,
+           SUM(IIF(ab.DebitOrCredit = 'Credit', ab.Amount, ab.Amount * (-1))) OVER (PARTITION BY ab.IdAgent) AS OtherCharges1,
+           SUM(IIF(oc.IdOtherChargesMemo IN ( 6, 9, 13, 19 ),
+                   IIF(ab.DebitOrCredit = 'Credit', ab.Amount, ab.Amount * (-1)),
+                   0)
+              ) OVER (PARTITION BY ab.IdAgent) AS OtherChargesC1,
+           SUM(IIF(oc.IdOtherChargesMemo IN ( 4, 5, 11, 12, 16, 17, 18, 24, 25 ),
+                   IIF(ab.DebitOrCredit != 'Credit', ab.Amount, ab.Amount * (-1)),
+                   0)
+              ) OVER (PARTITION BY ab.IdAgent) AS OtherChargesD1
+    INTO #OtherCharges
+    FROM AgentBalance ab
+        JOIN AgentOtherCharge oc
+            ON ab.IdAgentBalance = oc.IdAgentBalance
+               AND oc.IdOtherChargesMemo IN ( 6, 9, 13, 19, 4, 5, 11, 12, 16, 17, 18, 24, 25 )
+    WHERE ab.DateOfMovement >= @StartDate
+          AND ab.DateOfMovement < @EndDate
+          AND
+          (
+              ab.TypeOfMovement = 'CGO'
+              OR ab.TypeOfMovement = 'DEBT'
+          );
+
+
+
+    INSERT INTO #OtherCharges
+    SELECT AC.IdAgent,
+           SUM(o.AmountToPay) OVER (PARTITION BY AC.IdAgent) AS OtherCharges2,
+           SUM(IIF(o.AmountToPay > 0, o.AmountToPay, 0)) OVER (PARTITION BY AC.IdAgent) AS OtherChargesC2,
+           SUM(IIF(o.AmountToPay < 0, o.AmountToPay * (-1), 0)) OVER (PARTITION BY AC.IdAgent) AS OtherChargesD2
+    FROM AgentCollectionDetail o
+        INNER JOIN AgentCollection AC
+            ON AC.IdAgentCollection = o.IdAgentCollection
+    WHERE @ReportCorpType = 1
+          AND o.DateofLastChange >= @StartDate
+          AND o.DateofLastChange < @EndDate;
+
+
+
+    SELECT IdAgent,
+           IdCountry,
+           t.IdCountryCurrency
+    INTO #TransferUnclaimed
+    FROM Transfer t
+        JOIN CountryCurrency cc
+            ON t.IdCountryCurrency = cc.IdCountryCurrency
+    WHERE t.IdCountryCurrency = CASE
+                                    WHEN @IdCountryCurrency = 0 THEN
+                                        t.IdCountryCurrency
+                                    ELSE
+                                        @IdCountryCurrency
+                                END
+          AND DateStatusChange > @StartDate
+          AND DateStatusChange < @EndDate
+          AND IdStatus = 27
+          AND
+          (
+              (
+                  @Range1 IS NULL
+                  AND @Range2 IS NULL
+              )
+              OR t.AmountInDollars
+          BETWEEN @Range1 AND @Range2
+          );
+
+
+
+    SELECT IdAgent,
+           IdCountry,
+           IdCountryCurrency
+    INTO #TransferClosedUnclaimed
+    FROM dbo.TransferClosed t
+    WHERE IdCountryCurrency = CASE
+                                  WHEN @IdCountryCurrency = 0 THEN
+                                      IdCountryCurrency
+                                  ELSE
+                                      @IdCountryCurrency
+                              END
+          AND DateStatusChange > @StartDate
+          AND DateStatusChange < @EndDate
+          AND IdStatus = 27
+          AND
+          (
+              (
+                  @Range1 IS NULL
+                  AND @Range2 IS NULL
+              )
+              OR t.AmountInDollars
+          BETWEEN @Range1 AND @Range2
+          );
+
+END TRY
+BEGIN CATCH
+    DECLARE @ErrorMessage NVARCHAR(4000);
+    DECLARE @ErrorSeverity INT;
+    DECLARE @ErrorState INT;
+    SELECT @ErrorMessage = ERROR_MESSAGE(),
+           @ErrorSeverity = ERROR_SEVERITY(),
+           @ErrorState = ERROR_STATE();
+    RAISERROR(@ErrorMessage, @ErrorSeverity, @ErrorState);
+END CATCH;
